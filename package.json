@@ -25,6 +25,10 @@
   , "rimraf" : "latest"
   , "pg" : "latest"
   , "semver" : "latest"
+  , "xml" : "latest"
+  , "js2xmlparser" : "latest"
+  , "node-json2html" : "latest"
+  , "json2csv": "latest"
   }
 , "devDependencies": {
   }
