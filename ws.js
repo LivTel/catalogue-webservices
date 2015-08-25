@@ -51,7 +51,7 @@ function slice_usnob_str(s) {
 
 function scs(req, res, next) {
     console.log("received an scs request");
-    cat = req.params.cat, ra = req.params.ra, dec = req.params.dec, sr = req.params.sr, band = req.params.band, llim = req.params.llim, ulim = req.params.ulim, order = req.params.order, nmax = req.params.nmax, format = req.params.format.toLowerCase();
+    cat = req.params.cat.toLowerCase(), ra = req.params.ra, dec = req.params.dec, sr = req.params.sr, band = req.params.band, llim = req.params.llim, ulim = req.params.ulim, order = req.params.order, nmax = req.params.nmax, format = req.params.format.toLowerCase();
     switch (cat) {
         case 'apass':   
             console.log("using APASS catalogue");     
@@ -65,7 +65,7 @@ function scs(req, res, next) {
                     res.send(err);
                     return console.error('error fetching client from pool', err);
                 }
-                qry = "SELECT id as apassref, radeg as ra, decdeg as dec, raerrasec, decerrasec, vmag, bmag, gmag, rmag, imag, verr, berr, gerr, rerr, ierr, degrees(coords <-> spoint '(" + ra + "d," + dec + "d)')*3600 as distance FROM stars WHERE (coords @ scircle '<( " + ra + "d," + dec + "d)," + sr + "d>' = true) " + WHERECLAUSE_MAG + ORDERBYCLAUSE + LIMITCLAUSE;
+                qry = "SELECT id as apassref, radeg as ra, decdeg as dec, raerrasec, decerrasec, nightsobs as nobs, vmag, bmag, gmag, rmag, imag, verr, berr, gerr, rerr, ierr, degrees(coords <-> spoint '(" + ra + "d," + dec + "d)')*3600 as distance FROM stars WHERE (coords @ scircle '<( " + ra + "d," + dec + "d)," + sr + "d>' = true) " + WHERECLAUSE_MAG + ORDERBYCLAUSE + LIMITCLAUSE;
                 client.query(qry, function(err, result) {
                     console.log('executing query: ' + qry);
                     done();
@@ -91,8 +91,8 @@ function scs(req, res, next) {
                         case 'html':
                             console.log("outputting as html");
                             var transform = {'tag':'tr', 
-                                             'html':'<td>${apassref}</td><td>${ra}</td><td>${dec}</td><td>${raerrasec}</td><td>${decerrasec}</td><td>${vmag}</td><td>${bmag}</td><td>${gmag}</td><td>${rmag}</td><td>${imag}</td><td>${verr}</td><td>${berr}</td><td>${gerr}</td><td>${rerr}</td><td>${ierr}</td><td>${distance}</td>'};
-                            html = "<table cellpadding=3><tr><td><b>apassref</b><td><b>ra</b></td><td><b>dec</b></td><td><b>raerrasec</b></td><td><b>decerrasec<b/></td><td><b>vmag</b></td><td><b>bmag</b></td><td><b>gmag</b></td><td><b>rmag</b></td><td><b>imag</b></td><td><b>verr</b></td><td><b>berr</b></td><td><b>gerr</b></td><td><b>rerr</b></td><td><b>ierr</b></td><td><b>distance</b></td></tr>"
+                                             'html':'<td>${apassref}</td><td>${ra}</td><td>${dec}</td><td>${raerrasec}</td><td>${decerrasec}</td><td>${nobs}</td><td>${vmag}</td><td>${bmag}</td><td>${gmag}</td><td>${rmag}</td><td>${imag}</td><td>${verr}</td><td>${berr}</td><td>${gerr}</td><td>${rerr}</td><td>${ierr}</td><td>${distance}</td>'};
+                            html = "<table cellpadding=3><tr><td><b>apassref</b><td><b>ra</b></td><td><b>dec</b></td><td><b>raerrasec</b></td><td><b>decerrasec<b/></td><td><b>nobs<b/></td><td><b>vmag</b></td><td><b>bmag</b></td><td><b>gmag</b></td><td><b>rmag</b></td><td><b>imag</b></td><td><b>verr</b></td><td><b>berr</b></td><td><b>gerr</b></td><td><b>rerr</b></td><td><b>ierr</b></td><td><b>distance</b></td></tr>"
                                  + json2html.transform(result.rows, transform) 
                                  + "</table>";
                             res.header('Content-Type', 'text/html');
@@ -100,7 +100,7 @@ function scs(req, res, next) {
                             break;
                         case 'csv':
                             console.log("outputting as csv");
-                            fields = ['apassref', 'ra', 'raerrasec', 'decerrasec', 'vmag', 'bmag', 'gmag', 'rmag', 'imag', 'verr', 'berr', 'gerr', 'rerr', 'ierr', 'distance'];               
+                            fields = ['apassref', 'ra', 'raerrasec', 'decerrasec', 'nobs', 'vmag', 'bmag', 'gmag', 'rmag', 'imag', 'verr', 'berr', 'gerr', 'rerr', 'ierr', 'distance'];               
                             json2csv({ data: result.rows, fields: fields }, function(err, csv) {
                                 if (err) {
                                     return console.error('problem converting to csv', err);
@@ -111,7 +111,6 @@ function scs(req, res, next) {
                             });
                             break;
                        default:
-                            res.header('Content-Type', 'text/html');
                             res.send({'message' : 'format not recognised'});
                             return console.error('erroneous format requested');
                        }
@@ -216,7 +215,6 @@ function scs(req, res, next) {
                         });
                         break;
                     default:
-                        res.header('Content-Type', 'text/html');
                         res.send({'message' : 'format not recognised'});
                         return console.error('erroneous format requested');
                 }

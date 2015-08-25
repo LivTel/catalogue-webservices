@@ -45,7 +45,7 @@ Notes:
 - Possible values of CATALOGUE include "usnob", "apass" and "skycam".
 - RA/DEC/SR are in degrees.
 - MAGNITUDE\_FILTER\_COLUMN can be any magnitude related column.
-- ORDER\_BY\_COLUMN can be any output column (except usnobref, raerrasec, decerrasec in USNOB queries.
+- ORDER\_BY\_COLUMN can be any output column (except usnobref, raerrasec, decerrasec in USNOB queries).
 - MAX\_RETURNED\_ROWS shouldn't be too large for a large search radius!
 - OUTPUT\_FORMAT can be json, xml, html or csv.
 
