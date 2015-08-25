@@ -59,7 +59,7 @@ function scs(req, res, next) {
             var ORDERBYCLAUSE = ' ORDER BY ' + order
             LIMITCLAUSE = " LIMIT " + nmax;
 
-            conString = "postgres://" + cfg.db_host + ":" + cfg.db_port + "/" + cfg.db_name;
+            conString = "postgres://" + cfg.db_host + ":" + cfg.apass_db_port + "/" + cfg.apass_db_name;
             pg.connect(conString, function(err, client, done) {
                 if(err) {
                     res.send(err);
