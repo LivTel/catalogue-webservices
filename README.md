@@ -14,11 +14,11 @@ The root path to the catalogue directory must be set in config.json. This is
 
 where:
 
-* `bin` is a symlink to the directory containing the query_usnob executable.
-* `src` is a symlink to the directory containing the usnob1 C code (optional if you've already compiled)
-* `usnob` is a symlink to the directory containing the USNOB binary files.
-* `apass` is a symlink to the directory containing the APASS database.
-* `skycam` is a symlink to the directory containing the SKYCAM database.
+* `bin` is the directory containing the query_usnob executable.
+* `src` is the directory containing the usnob1 C code (optional if you've already compiled)
+* `usnob` is the directory containing the USNOB binary files.
+* `apass` is the directory containing the APASS database.
+* `skycam` is the directory containing the SKYCAM database.
 
 # Catalogues supported
 
@@ -162,6 +162,12 @@ The structure is like:
 > 009  021  033  045  057  069  081  093  105  117  129  141  153  165  177  
 > 010  022  034  046  058  070  082  094  106  118  130  142  154  166  178  
 > 011  023  035  047  059  071  083  095  107  119  131  143  155  167  179  
+
+#### building the USNOB query binary
+ 
+This can be done from the /cat/src/ folder with:
+
+`make usnob`
 
 ### SKYCAM
 

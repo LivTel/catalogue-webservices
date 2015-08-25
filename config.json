@@ -2,7 +2,7 @@
   "ws_port" : "3000",
   "db_host" : "localhost",
   "apass_db_port" : "5432",
-  "apass_db_name" : "apass_dr7",
+  "apass_db_name" : "apass_dr9",
   "skycam_db_port" : "5433",
   "skycam_db_name" : "skycam",
   "root_path" : "/cat/"
