@@ -174,7 +174,7 @@ directory structure like, e.g.
 
 > /home/eng/cat/skycam
 
-`[rmb@rmb-tower skycam]$ ls`
+`[eng@catalogue skycam]$ ls`
 
 > base         pg\_ident.conf  pg\_serial     pg\_tblspc    postgresql.conf  
 > global       pg\_log         pg\_snapshots  pg\_twophase  postmaster.opts  
