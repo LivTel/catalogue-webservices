@@ -57,7 +57,7 @@ Notes:
 
 * install postgres:
 
-`sudo yum install postgres postgres-server postgresql-devel pgadmin3`
+`sudo yum install postgres postgresql-server postgresql-devel pgadmin3`
 
 * initialise postgres:
 
@@ -85,6 +85,11 @@ Notes:
 
 `make USE_PGXS=1`
 `sudo make install USE_PGXS=1`
+
+If you get an "unknown type name `int4`, then you will need to edit 
+line.h and add the following:
+
+`typedef int16 int4;`
 
 * edit resulting .sql (/usr/share/pgsql/contrib/pg_sphere.sql) file that is 
 used to load the functions. Change instances of LANGUAGE 'C' to LANGUAGE 'c' 
@@ -171,10 +176,13 @@ This can be done from the /cat/src/ folder with:
 
 ### SKYCAM
 
-#### hosting your own local copy
+#### creating the database
 
-Assuming you have access to a copy of the database, ensure you have a 
-directory structure like, e.g.
+* initialise postgres:
+
+`initdb -D /some/path`
+
+* ensure the directory structure is correct
 
 `[eng@catalogue skycam]$ pwd`
 
@@ -187,7 +195,7 @@ directory structure like, e.g.
 > pg\_clog      pg\_multixact   pg\_stat_tmp   PG\_VERSION   postmaster.pid  
 > pg\_hba.conf  pg\_notify      pg\_subtrans   pg\_xlog  
 
-The command to then start the postgres daemon (running on port 5433) is:
+* start the postgres daemon (running on port 5433) is:
 
 `[eng@catalogue skycam]$ pwd`
 
@@ -198,6 +206,13 @@ The command to then start the postgres daemon (running on port 5433) is:
 You will need to make sure to specify a different port number if you're already 
 running a postgres database for APASS on the default port (5432). This must be 
 reflected in config.json.
+
+* create skycam database
+
+`createdb --port 5433 skycam`
+
+* add pgSphere support. This is discussed in the section "a recipe for ingesting 
+an APASS database".
 
 #### setting access rights
 
