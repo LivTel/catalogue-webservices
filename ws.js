@@ -15,179 +15,15 @@ var sys = require('sys')
         , json2html = require('node-json2html')
         , json2csv = require('json2csv')
 	; 
-      
-function _destroy_skycam_drop_schema(schema_name, res, client, callback) {
-    qry = "DROP SCHEMA " + schema + " CASCADE";
-    _pg_execute(client, qry, function(err) {
-        if (err) {
-            res.send(err);
-            return console.error('error running query', err)
-        } else {
-            callback();
-        }
-    });
-}
-
-function _init_skycam_make_index(table, column, name, res, client, callback) {
-    qry = "CREATE INDEX " + name + " ON " + table + " (" + column + ")"
-    _pg_execute(client, qry, function(err) {
-        if (err) {
-            res.send(err);
-            return console.error('error running query', err)
-        } else {
-            callback();
-        }
-    });    
-}
-
-function _init_skycam_make_spatial_index(table, column, name, res, client, callback) {
-    qry = "CREATE INDEX " + name + " ON " + table + " USING GIST(" + column + ")";
-    _pg_execute(client, qry, function(err) {
-        if (err) {
-            res.send(err);
-            return console.error('error running query', err)
-        } else {
-            callback();
-        }
-    });    
-}
-
-function _init_skycam_make_schema(schema_name, res, client, callback) {
-    qry = "CREATE SCHEMA " + schema_name;
-    _pg_execute(client, qry, function(err) {
-        if (err) {
-            res.send(err);
-            return console.error('error running query', err)
-        } else {
-            callback();
-        }
-    });
-}
-
-function _init_skycam_make_table_images(schema_name, res, client, callback) {
-    qry = "CREATE TABLE " + schema_name + ".images ( \
-	   img_id bigserial unique primary key, \
-           img_date timestamp NOT NULL, \
-           img_rundate timestamp NOT NULL, \
-           mjd double precision NOT NULL, \
-           utstart time NOT NULL, \
-           ra_cent double precision NOT NULL, \
-           dec_cent double precision NOT NULL, \
-           ra_min double precision NOT NULL, \
-           ra_max double precision NOT NULL, \
-           dec_min double precision NOT NULL, \
-           dec_max double precision NOT NULL, \
-           ccdstemp double precision NOT NULL, \
-           ccdatemp double precision NOT NULL, \
-           azdmd double precision NOT NULL, \
-           azimuth double precision NOT NULL, \
-           altdmd double precision NOT NULL, \
-           altitude double precision NOT NULL, \
-           rotskypa double precision NOT NULL, \
-           filename char(35) NOT NULL \
-           );";
-    _pg_execute(client, qry, function(err) {
-        if (err) {
-            res.send(err);
-            return console.error('error running query', err)
-        } else {
-            callback();
-        }
-    });
-}
-
-function _init_skycam_make_table_matchedAPASSObjects(schema_name, res, client, callback) {
-    qry = "CREATE TABLE " + schema_name + ".matchedAPASSObjects ( \
-           apassref bigserial unique primary key, \
-           ra double precision NOT NULL, \
-           dec double precision NOT NULL, \
-           ra_err double precision NOT NULL, \
-           dec_err double precision NOT NULL, \
-           v_mag double precision NOT NULL, \
-           b_mag double precision NOT NULL, \
-           g_mag double precision NOT NULL, \
-           r_mag double precision NOT NULL, \
-           i_mag double precision NOT NULL, \
-           v_mag_err double precision NOT NULL, \
-           b_mag_err double precision NOT NULL, \
-           g_mag_err double precision NOT NULL, \
-           r_mag_err double precision NOT NULL, \
-           i_mag_err double precision NOT NULL, \
-           n_obs int, \
-           pos spoint NOT NULL \
-           );"
-    _pg_execute(client, qry, function(err) {
-        if (err) {
-            res.send(err);
-            return console.error('error running query', err)
-        } else {
-            callback();
-        }
-    });
-}
-
-function _init_skycam_make_table_matchedUSNOBObjects(schema_name, res, client, callback) {
-    qry = "CREATE TABLE " + schema_name + ".matchedUSNOBObjects ( \
-           usnobref char(25) unique primary key, \
-           usnobref_int bigserial unique NOT NULL, \
-           ra double precision NOT NULL, \
-           dec double precision NOT NULL, \
-           ra_err double precision NOT NULL, \
-           dec_err double precision NOT NULL, \
-           r1_mag double precision NOT NULL, \
-           b1_mag double precision NOT NULL, \
-           b2_mag double precision NOT NULL, \
-           r2_mag double precision NOT NULL, \
-           pos spoint NOT NULL \
-           );"
-    _pg_execute(client, qry, function(err) {
-        if (err) {
-            res.send(err);
-            return console.error('error running query', err)
-        } else {
-            callback();
-        }
-    });
-}
-
-function _init_skycam_make_table_sources(schema_name, res, client, callback) {
-    qry = "CREATE TABLE " + schema_name + ".sources ( \
-           src_id bigserial unique primary key, \
-           img_id bigserial NOT NULL references " + schema_name + ".images(img_id), \
-           mjd double precision NOT NULL, \
-           ra double precision NOT NULL, \
-           dec double precision NOT NULL, \
-           x_pix double precision NOT NULL, \
-           y_pix double precision NOT NULL, \
-           flux double precision NOT NULL, \
-           flux_err double precision NOT NULL, \
-           inst_mag double precision NOT NULL, \
-           inst_mag_err double precision NOT NULL, \
-           background double precision NOT NULL, \
-           isoarea_world double precision NOT NULL, \
-           seflags smallint NOT NULL, \
-           fwhm double precision NOT NULL, \
-           elongation double precision NOT NULL, \
-           ellipticity double precision NOT NULL, \
-           theta_image double precision NOT NULL, \
-           usnobref char(25) NULL, \
-           usnobref_int bigint NULL, \
-           apassref bigint NULL, \
-           pos spoint NOT NULL \
-            );"
-    _pg_execute(client, qry, function(err) {
-        if (err) {
-            res.send(err);
-            return console.error('error running query', err)
-        } else {
-            callback();
-        }
-    });
-} 
 
 function _pg_execute(client, qry, callback) {
     client.query(qry, function(err, result) {
-        console.log('executed query: ' + qry);
+        qry = qry.replace(/\s\s+/g, ' ');   // merge any instances of whitespace to single character
+        if (qry.length < 1024) {
+            console.log('executed query', "\"" + qry + "\"");
+        } else { 
+            console.log('executed query', "\"" + qry.substr(0,1024) + " ...\""); 
+        }
         callback(err, result);
     });
 }
@@ -218,32 +54,46 @@ function _slice_usnob_str(s) {
    
 function scs(req, res, next) {
     console.log("received an scs request");
-    cat = req.params.cat.toLowerCase(), ra = req.params.ra, dec = req.params.dec, sr = req.params.sr, band = req.params.band, llim = req.params.llim, ulim = req.params.ulim, order = req.params.order, nmax = req.params.nmax, format = req.params.format.toLowerCase();
+    cat     = req.params.cat.toLowerCase(), 
+    ra      = req.params.ra, 
+    dec     = req.params.dec, 
+    sr      = req.params.sr, 
+    band    = req.params.band, 
+    llim    = req.params.llim, 
+    ulim    = req.params.ulim, 
+    order   = req.params.order, 
+    nmax    = req.params.nmax, 
+    format  = req.params.format.toLowerCase();
 
-    // RA must be decimal for USNOB
+    // RA must be input as decimal
     if (ra.indexOf('.') == -1) {
-        ra = ra + '.0'
+        ra = ra + '.0';
     }
 
     switch (cat) {
         case 'apass':   
             console.log("using APASS catalogue");     
             var WHERECLAUSE_MAG = 'AND ' + band + ' >= ' + req.params.llim + ' and ' + band + ' <= ' + ulim;
-            var ORDERBYCLAUSE = ' ORDER BY ' + order
-            LIMITCLAUSE = " LIMIT " + nmax;
+            var ORDERBYCLAUSE   = ' ORDER BY ' + order;
+            var LIMITCLAUSE     = ' LIMIT ' + nmax;
 
-            conString = "postgres://" + cfg.db_host + ":" + cfg.apass_db_port + "/" + cfg.apass_db_name;
+            conString = "postgres://" + cfg.apass_db_user + "@" + cfg.apass_db_host + ":" + cfg.apass_db_port + "/" + cfg.apass_db_name;
             pg.connect(conString, function(err, client) {
                 if(err) {
-                    res.send(err);
-                    return console.error('error fetching client from pool', err);
+                    res.send(400, err);
+                    console.error(err);
+                    return false;
                 }
-                qry = "SELECT id as apassref, radeg as ra, decdeg as dec, raerrasec, decerrasec, nightsobs as nobs, vmag, bmag, gmag, rmag, imag, verr, berr, gerr, rerr, ierr, degrees(coords <-> spoint '(" + ra + "d," + dec + "d)')*3600 as distance FROM stars WHERE (coords @ scircle '<( " + ra + "d," + dec + "d)," + sr + "d>' = true) " + WHERECLAUSE_MAG + ORDERBYCLAUSE + LIMITCLAUSE;
+                qry = "SELECT id as apassref, radeg as ra, decdeg as dec, raerrasec, decerrasec, nightsobs as nobs, \
+                       vmag, bmag, gmag, rmag, imag, verr, berr, gerr, rerr, ierr, degrees(coords <-> spoint '(" + ra 
+                       + "d," + dec + "d)')*3600 as distance FROM stars WHERE (coords @ scircle '<( " + ra + "d," + dec 
+                       + "d)," + sr + "d>' = true) " + WHERECLAUSE_MAG + ORDERBYCLAUSE + LIMITCLAUSE;
                 _pg_execute(client, qry, function(err, result) {
                     client.end();
                     if(err) {
-                        res.send(err);
-                        return console.error('error running query', err)
+                        res.send(400, err);
+                        console.error(err);
+                        return false;
                     }
                     switch (format) {
                         case 'xml':
@@ -275,17 +125,21 @@ function scs(req, res, next) {
                             fields = ['apassref', 'ra', 'raerrasec', 'decerrasec', 'nobs', 'vmag', 'bmag', 'gmag', 'rmag', 'imag', 'verr', 'berr', 'gerr', 'rerr', 'ierr', 'distance'];               
                             json2csv({ data: result.rows, fields: fields }, function(err, csv) {
                                 if (err) {
-                                    return console.error('problem converting to csv', err);
-                                    res.send(err)
+                                    res.send(400, err);
+                                    console.error(err);
+                                    return false;
                                 }
                                 res.header('Content-Type', 'text/html');
-                                res.send(csv);
+                                res.end(csv);
                             });
                             break;
                        default:
-                            res.send({'message' : 'format not recognised'});
-                            return console.error('erroneous format requested');
-                       }
+                            err = {'message' : 'format not recognised'};
+                            err['formats_expected'] = ['xml', 'json', 'html', 'csv'];
+                            res.send(400, err);
+                            console.error(err);
+                            return false;
+                    }
                 });
             });
             break;
@@ -306,8 +160,11 @@ function scs(req, res, next) {
                     band = 'b2';
                     break;
                 default:
-                    res.send({'message' : 'magnitude filter column not recognised'});
-                    return console.error('erroneous magnitude filter column requested');
+                    err = {'message' : 'bad magnitude filter column'};
+                    err['columns_expected'] = ['rmag1', 'rmag2', 'bmag1', 'bmag2'];
+                    res.send(400, err);
+                    console.error(err);
+                    return false;
             }
             switch (order) {
                 case 'rmag1':
@@ -332,8 +189,11 @@ function scs(req, res, next) {
                     order = 'r';
                     break;
                 default:
-                    res.send({'message' : 'order column not recongised'});
-                    return console.error('erroneous order column requested');
+                    err = {'message' : 'bad order column'};
+                    err['columns_expected'] = ['rmag1', 'rmag2', 'bmag1', 'bmag2', 'ra', 'dec', 'distance'];
+                    res.send(400, err);
+                    console.error(err);
+                    return false;
             }
 
             qry_params =  ['-R', cfg.root_path + 'usnob', '-c', ra + ' ' + dec, '-r', sr*60., '-m', nmax, '-lm' + band, llim + ',' + ulim, '-s' + order];
@@ -379,107 +239,89 @@ function scs(req, res, next) {
                         fields = ['usnobref', 'ra', 'dec', 'raerrasec', 'decerrasec', 'bmag1', 'bmag2', 'rmag1', 'rmag2', 'distance'];               
                         json2csv({ data: out_json, fields: fields }, function(err, csv) {
                             if (err) {
-                                return console.error('problem converting to csv', err);
-                                res.send(err)
+                                res.send(400, err);
+                                console.error(err);
+                                return false;
                             }
                             res.header('Content-Type', 'text/html');
                             res.send(csv);
                         });
                         break;
                     default:
-                        res.send({'message' : 'format not recognised'});
-                        return console.error('erroneous format requested');
+                        err = {'message' : 'format not recognised'};
+                        err['formats_expected'] = ['xml', 'json', 'html', 'csv'];
+                        res.send(400, err);
+                        console.error(err);
+                        return false;
                 }
             });
             break;
         default:
-            res.send({'message' : 'catalogue not recognised'});
-            return console.error('erroneous catalogue requested');
+            err = {'message' : 'catalogue not recognised'};
+            err['catalogues_expected'] = ['apass', 'usnob'];
+            res.send(400, err);
+            console.error(err);
+            return false;
     }
+    return;
 }
 
-function destroy_skycam(req, res, next) {
-    console.log("received a destroy_skycam request");
-    schema = req.params.schema;
-
-    conString = "postgres://" + cfg.db_host + ":" + cfg.skycam_db_port + "/" + cfg.skycam_db_name;
-    pg.connect(conString, function(err, client) {
-        if(err) {
-            res.send(err);
-            return console.error('error fetching client from pool', err);
-        } else {
-            _destroy_skycam_drop_schema(schema, res, client, function(){
-                client.end();
-                res.send(200);
-            });
-        }
-    });
-}
-
-function init_skycam(req, res, next) {
-    console.log("received an init_skycam request");
-    schema = req.params.schema;
-
-    conString = "postgres://" + cfg.db_host + ":" + cfg.skycam_db_port + "/" + cfg.skycam_db_name;
-    pg.connect(conString, function(err, client) {
-        if(err) {
-            res.send(err);
-            return console.error('error fetching client from pool', err);
-        } else {
-            _init_skycam_make_schema(schema, res, client, function() {
-                _init_skycam_make_table_images(schema, res, client, function() {
-                    _init_skycam_make_table_matchedUSNOBObjects(schema, res, client, function() {
-                        _init_skycam_make_table_matchedAPASSObjects(schema, res, client, function() {
-                            _init_skycam_make_table_sources(schema, res, client, function() {
-                                _init_skycam_make_index(schema+".images", "img_date", "idx_images_img_date", res, client, function() {
-                                    _init_skycam_make_index(schema+".images", "mjd", "idx_images_mjd", res, client, function() {
-                                        _init_skycam_make_index(schema+".sources", "mjd", "idx_sources_mjd", res, client, function() {
-                                            _init_skycam_make_index(schema+".sources", "inst_mag", "idx_sources_inst_mag", res, client, function() {
-                                                _init_skycam_make_spatial_index(schema+".sources", "pos", "idx_sources_pos", res, client, function() {
-                                                    _init_skycam_make_index(schema+".matchedUSNOBObjects", "usnobref_int", "idx_matchedUSNOBObjects_usnobref_int", res, client, function() {
-                                                        _init_skycam_make_spatial_index(schema+".matchedUSNOBObjects", "pos", "idx_matchedUSNOBObjects_pos", res, client, function() {
-                                                             _init_skycam_make_index(schema+".matchedAPASSObjects", "apassref", "idx_matchedAPASSObjects_apassref", res, client, function() {
-                                                                _init_skycam_make_spatial_index(schema+".matchedAPASSObjects", "pos", "idx_matchedAPASSObjects_pos", res, client, function() {
-                                                                    client.end();
-                                                                    res.send(200);
-                                                                });
-                                                            });
-                                                        });
-                                                    });
-                                                });
-                                            });
-                                        });
-                                    });
-                                });
-                            });
-                        });
-                    });
-                });
-            });
-        }
-    });
-}
-
-function skycam_images_get_by_filename(req, res, next) {
-    console.log("received a skycam_images_get_by_filename request");
+function skycam_images_delete_by_img_id(req, res, next) {
+    console.log("received a skycam_images_delete_by_img_id request");
     schema_name = req.params.schema;
-    filename    = req.params.filename;
+    img_id      = req.params.img_id;
     
-    conString = "postgres://" + cfg.db_host + ":" + cfg.skycam_db_port + "/" + cfg.skycam_db_name;
+    conString = "postgres://" + cfg.skycam_db_user + "@" + cfg.skycam_db_host + ":" + cfg.skycam_db_port + "/" + cfg.skycam_db_name;
     pg.connect(conString, function(err, client) {
         if(err) {
-            res.send(err);
-            return console.error('error fetching client from pool', err);
+            res.send(400, err);
+            console.error(err);
+            return false;
         } else {
-            qry = "SELECT * FROM " + schema_name + ".images WHERE FILENAME = '" + filename + "' ORDER BY MJD LIMIT 1";
+            qry = "DELETE FROM " + schema_name + ".images WHERE img_id = " + img_id;
             _pg_execute(client, qry, function(err, result) {
-                client.end();
+                client.end(); 
                 if (err) {
-                    res.send(err);
-                    return console.error('error running query', err)
+                    res.send(400, err);
+                    console.error(err);
+                    return false;
+                } else {
+                    res.send(200);
+                } 
+                return;
+            });            
+        }
+    });
+}
+
+function skycam_images_get_by_img_id(req, res, next) {
+    console.log("received a skycam_images_get_by_img_id request");
+    schema_name = req.params.schema;
+    img_id      = req.params.img_id;
+    
+    conString = "postgres://" + cfg.skycam_db_user + "@" + cfg.skycam_db_host + ":" + cfg.skycam_db_port + "/" + cfg.skycam_db_name;
+    pg.connect(conString, function(err, client) {
+        if(err) {
+            res.send(400, err);
+            console.error(err);
+            return false;
+        } else {
+            qry = "SELECT * FROM " + schema_name + ".images WHERE img_id = " + img_id;
+            _pg_execute(client, qry, function(err, result) {
+                client.end(); 
+                if (err) {
+                    res.send(400, err);
+                    console.error(err);
+                    return false;
+                } else if (result.rows.length == 0) {
+                    err = {'message' : 'no images with this img_id found'};
+                    res.send(400, err);
+                    console.error(err);
+                    return false;
                 } else {
                     res.send(result.rows);
-                }
+                } 
+                return;
             });            
         }
     });
@@ -488,31 +330,74 @@ function skycam_images_get_by_filename(req, res, next) {
 function skycam_images_insert(req, res, next) {
     console.log("received a skycam_images_insert request");
     schema_name = req.params.schema;
-    headers      = JSON.parse(req.params.headers);
     
-    conString = "postgres://" + cfg.db_host + ":" + cfg.skycam_db_port + "/" + cfg.skycam_db_name;
+    // check [vals] argument is valid JSON
+    try {
+        vals = JSON.parse(req.params.vals);
+    } catch(err) {
+        res.send(400, err);
+        console.error(err);
+        return false;
+    }
+    // check [vals] is populated with all necessary keys required to ingest into database
+    keys = ['DATE_OBS',
+            'MJD', 
+            'UTSTART', 
+            'RA_CENT', 
+            'DEC_CENT', 
+            'RA_MIN', 
+            'RA_MAX', 
+            'DEC_MIN', 
+            'DEC_MAX', 
+            'CCDSTEMP', 
+            'CCDATEMP', 
+            'AZDMD', 
+            'AZIMUTH', 
+            'ALTDMD', 
+            'ALTITUDE', 
+            'ROTSKYPA'
+    ];
+    keys_missing = [];
+    keys.forEach(function(entry) {
+        if (!(entry in vals)) {
+            keys_missing.push(entry);
+        }
+    });
+    if (keys_missing.length>0) {
+        err = {'message' : 'key missing or incorrect in vals argument'};
+        err['keys_expected'] = keys;
+        err['keys_missing']  = keys_missing;
+        res.send(400, err);
+        console.error(err);
+        return false;
+    }
+    
+    conString = "postgres://" + cfg.skycam_db_user + "@" + cfg.skycam_db_host + ":" + cfg.skycam_db_port + "/" + cfg.skycam_db_name;
     pg.connect(conString, function(err, client) {
         if(err) {
-            res.send(err);
-            return console.error('error fetching client from pool', err);
+            res.send(400, err);
+            console.error(err);
+            return false;
         } else {
             qry = "INSERT INTO " + schema_name + ".images( \
                 img_date, img_rundate, mjd, utstart, ra_cent, dec_cent, ra_min, ra_max, \
                 dec_min, dec_max, ccdstemp, ccdatemp, azdmd, azimuth, altdmd, altitude, \
-                rotskypa, filename) VALUES ('" + headers.DATE_OBS + "', NOW(), " + headers.MJD + ", '" 
-                + headers.UTSTART + "', " + headers.RA_CENT + ", " + headers.DEC_CENT + ", " + headers.RA_MIN 
-                + ", " + headers.RA_MAX + ", " + headers.DEC_MIN + ", " + headers.DEC_MAX + ", " 
-                + headers.CCDSTEMP + ", " + headers.CCDATEMP + ", " + headers.AZDMD + ", " + headers.AZIMUTH 
-                + ", " + headers.ALTDMD + ", " + headers.ALTITUDE + ", " + headers.ROTSKYPA + ", '" 
-                + headers.FILENAME + "')"
-            _pg_execute(client, qry, function(err) {
-                client.end();
+                rotskypa, filename) VALUES ('" + vals.DATE_OBS + "', NOW(), " + vals.MJD + ", '" 
+                + vals.UTSTART + "', " + vals.RA_CENT + ", " + vals.DEC_CENT + ", " + vals.RA_MIN 
+                + ", " + vals.RA_MAX + ", " + vals.DEC_MIN + ", " + vals.DEC_MAX + ", " 
+                + vals.CCDSTEMP + ", " + vals.CCDATEMP + ", " + vals.AZDMD + ", " + vals.AZIMUTH 
+                + ", " + vals.ALTDMD + ", " + vals.ALTITUDE + ", " + vals.ROTSKYPA + ", '" 
+                + vals.FILENAME + "')  RETURNING img_id, mjd";
+            _pg_execute(client, qry, function(err, result) {
+                client.end(); 
                 if (err) {
-                    res.send(err);
-                    return console.error('error running query', err)
+                    res.send(400, err);
+                    console.error(err);
+                    return false;
                 } else {
-                    res.send(200);
-                }
+                    res.send(result.rows[0]);
+                } 
+                return;
             });            
         }
     });
@@ -520,73 +405,288 @@ function skycam_images_insert(req, res, next) {
 
 function skycam_sources_add_source_to_buffer(req, res, next) {
     console.log("received a skycam_sources_add_source_to_buffer request");
-    schema         = req.params.schema;    
-    source         = JSON.parse(req.params.source);
+    schema = req.params.schema;    
     
+    // check [vals] argument is valid JSON
+    try {
+        vals = JSON.parse(req.params.vals);
+    } catch(err) {
+        res.send(400, err);
+        console.error(err);
+        return false;
+    }
+    // check [vals] is populated with all necessary keys required to ingest into database
+    keys = ['img_id',
+            'skycamref',
+            'mjd', 
+            'ra', 
+            'dec', 
+            'x', 
+            'y', 
+            'fluxAuto', 
+            'fluxErrAuto', 
+            'magAuto', 
+            'magErrAuto', 
+            'background', 
+            'isoareaWorld', 
+            'SEFlags', 
+            'FWHM', 
+            'elongation', 
+            'ellipticity',
+            'thetaImage'
+    ];
+    keys_missing = [];
+    keys.forEach(function(entry) {
+        if (!(entry in vals)) {
+            keys_missing.push(entry);
+        }
+    });
+    if (keys_missing.length>0) {
+        err = {'message' : 'key missing or incorrect in vals argument'};
+        err['keys_expected'] = keys;
+        err['keys_missing']  = keys_missing;
+        res.send(400, err);
+        console.error(err);
+        return false;
+    }
+    
+    // add requested [schema] name as key in JSON buffer object if it doesn't exist
     if (!(schema in buffer_sources)) {
         buffer_sources[schema] = [];
     }
     
-    buffer_sources[schema].push(source);
-    res.send(200)
+    buffer_sources[schema].push(vals);
+    res.send(200);
+    return;
 }
+
+function skycam_sources_delete_buffer(req, res, next) {
+    console.log("received a skycam_sources_delete_buffer request");
+    schema  = req.params.schema;  
+    
+    if (buffer_sources[schema] == undefined) {
+        err = {'message' : 'schema doesn\'t exist in buffer or buffer is empty'};
+        res.send(400, err);
+        console.error(err);
+        return false;
+    }
+    
+    delete buffer_sources[schema];
+    res.send(200);
+    return;
+}
+
+function skycam_sources_delete_by_img_id(req, res, next) {
+    console.log("received a skycam_sources_delete_by_img_id request");
+    schema_name = req.params.schema;
+    img_id      = req.params.img_id;
+    
+    conString = "postgres://" + cfg.skycam_db_user + "@" + cfg.skycam_db_host + ":" + cfg.skycam_db_port + "/" + cfg.skycam_db_name;
+    pg.connect(conString, function(err, client) {
+        if(err) {
+            res.send(400, err);
+            console.error(err);
+            return false;
+        } else {
+            qry = "DELETE FROM " + schema_name + ".sources WHERE img_id = " + img_id;
+            _pg_execute(client, qry, function(err, result) {
+                client.end(); 
+                if (err) {
+                    res.send(400, err);
+                    console.error(err);
+                    return false;
+                } else {
+                    res.send(200);
+                } 
+                return;
+            });            
+        }
+    });
+}
+
 
 function skycam_sources_flush_buffer_to_db(req, res, next) {
     console.log("received a skycam_sources_flush_buffer_to_db request");
-    schema         = req.params.schema;  
+    schema = req.params.schema;  
     
-    if (buffer_sources[schema].length == undefined) {
-        err = {'message' : 'buffer is empty'}
-        res.send(err)
-        return err
+    if (buffer_sources[schema] == undefined) {
+        err = {'message' : 'schema doesn\'t exist in buffer or buffer is empty'};
+        res.send(400, err);
+        console.error(err);
+        return false;
     }
     
+    // construct a statement for bulk insertion
     valuesClause = "";
     buffer_sources[schema].forEach(function(entry) {
-        valuesClause += "(" + entry.img_id + ", " + entry.mjd + ", " + entry.ra + ", " + entry.dec + ", " + entry.x 
-        + ", " + entry.y + ", " + entry.fluxAuto + ", " + entry.fluxErrAuto + ", " + entry.magAuto + ", " + entry.magErrAuto
-        + ", " + entry.background + ", " + entry.isoareaWorld + ", " + entry.SEFlags + ", " + entry.FWHM + ", " 
-        + entry.elongation + ", " + entry.ellipticity + ", " + entry.thetaImage + ", " + entry.usnobref + ", " 
-        + entry.usnobref.replace("-", "") + ", " + entry.apassref + ", spoint(" + entry.ra*(Math.PI/180) + ", " + entry.dec*(Math.PI/180) + ")),"
+        valuesClause += "(" + entry.img_id + ", " + entry.skycamref + ", " + entry.mjd + ", " + entry.ra + ", " + entry.dec + ", " + entry.x + 
+        ", " + entry.y + ", " + entry.fluxAuto + ", " + entry.fluxErrAuto + ", " + entry.magAuto + ", " + entry.magErrAuto + 
+        ", " + entry.background + ", " + entry.isoareaWorld + ", " + entry.SEFlags + ", " + entry.FWHM + ", " + 
+        entry.elongation + ", " + entry.ellipticity + ", " + entry.thetaImage + ", spoint(" + entry.ra*(Math.PI/180) + 
+        ", " + entry.dec*(Math.PI/180) + ")),";
     });
-    valuesClause = valuesClause.substr(0, valuesClause.length-1)    // get rid of trailing comma
+
+    valuesClause = valuesClause.substr(0, valuesClause.length-1)    // discard trailing comma
     
-    conString = "postgres://" + cfg.db_host + ":" + cfg.skycam_db_port + "/" + cfg.skycam_db_name;
+    conString = "postgres://" + cfg.skycam_db_user + "@" + cfg.skycam_db_host + ":" + cfg.skycam_db_port + "/" + cfg.skycam_db_name;
     pg.connect(conString, function(err, client) {
         if(err) {
-            res.send(err);
-            return console.error('error fetching client from pool', err);
+            res.send(400, err);
+            console.error(err);
+            return false;
         } else {
-            qry = "INSERT INTO " + schema + ".sources(img_id, mjd, ra, dec, x_pix, y_pix, flux, flux_err,\
+            qry = "INSERT INTO " + schema + ".sources(img_id, skycamref, mjd, ra, dec, x_pix, y_pix, flux, flux_err,\
             inst_mag, inst_mag_err, background, isoarea_world, seflags, fwhm, elongation, ellipticity,\
-            theta_image, usnobref, usnobref_int, apassref, pos) VALUES " + valuesClause
+            theta_image, pos) VALUES " + valuesClause;
             _pg_execute(client, qry, function(err) {
                 client.end();
                 if (err) {
-                    res.send(err);
-                    return console.error('error running query', err)
+                    res.send(400, err);
+                    console.error(err);
+                    return false;
                 } else {
                     res.send(200);
+                    buffer_sources[schema] = [];    // complete flushing process by emptying buffer for this [schema]
                 }
+                return;
             });            
         }
     });    
-    buffer_sources = {};                // clear buffer
 }
 
+function skycam_sources_get_buffer(req, res, next) {
+    console.log("received a skycam_sources_get_buffer request");
+    res.send(buffer_sources);
+}
+
+function skycam_sources_get_by_img_id(req, res, next) {
+    console.log("received a skycam_sources_get_by_img_id request");
+    schema_name = req.params.schema;
+    img_id      = req.params.img_id;
+    
+    conString = "postgres://" + cfg.skycam_db_user + "@" + cfg.skycam_db_host + ":" + cfg.skycam_db_port + "/" + cfg.skycam_db_name;
+    pg.connect(conString, function(err, client) {
+        if(err) {
+            res.send(400, err);
+            console.error(err);
+            return false;
+        } else {
+            qry = "SELECT * FROM " + schema_name + ".sources WHERE img_id = " + img_id;
+            _pg_execute(client, qry, function(err, result) {
+                client.end(); 
+                if (err) {
+                    res.send(400, err);
+                    console.error(err);
+                    return false;
+                } else if (result.rows.length == 0) {
+                    err = {'message' : 'no sources with this img_id found'};
+                    res.send(400, err);
+                    console.error(err);
+                    return false;
+                } else {
+                    res.send(result.rows);
+                } 
+                return;
+            });            
+        }
+    });
+}
+
+function skycam_sources_insert(req, res, next) {
+    console.log("received a skycam_sources_insert request");
+    schema = req.params.schema;  
+    
+    // check [vals] argument is valid JSON
+    try {
+        vals = JSON.parse(req.params.vals);
+    } catch(err) {
+        res.send(400, err);
+        console.error(err);
+        return false;
+    }
+    // check [vals] is populated with all necessary keys required to ingest into database
+    keys = ['img_id',
+            'skycamref',
+            'mjd', 
+            'ra', 
+            'dec', 
+            'x', 
+            'y', 
+            'fluxAuto', 
+            'fluxErrAuto', 
+            'magAuto', 
+            'magErrAuto', 
+            'background', 
+            'isoareaWorld', 
+            'SEFlags', 
+            'FWHM', 
+            'elongation', 
+            'ellipticity',
+            'thetaImage'
+    ];
+    keys_missing = [];
+    keys.forEach(function(entry) {
+        if (!(entry in vals)) {
+            keys_missing.push(entry);
+        }
+    });
+    if (keys_missing.length>0) {
+        err = {'message' : 'key missing or incorrect in vals argument'};
+        err['keys_expected'] = keys;
+        err['keys_missing']  = keys_missing;
+        res.send(400, err);
+        console.error(err);
+        return false;
+    }
+    
+    conString = "postgres://" + cfg.skycam_db_user + "@" + cfg.skycam_db_host + ":" + cfg.skycam_db_port + "/" + cfg.skycam_db_name;
+    pg.connect(conString, function(err, client) {
+        if(err) {
+            res.send(400, err);
+            console.error(err);
+            return false;
+        } else {
+            qry = "INSERT INTO " + schema + ".sources(img_id, skycamref, mjd, ra, dec, x_pix, y_pix, flux, flux_err,\
+            inst_mag, inst_mag_err, background, isoarea_world, seflags, fwhm, elongation, ellipticity,\
+            theta_image, pos) VALUES " + "(" + vals.img_id + ", " + vals.skycamref + ", " + vals.mjd + ", " + vals.ra + ", " + 
+            vals.dec + ", " + vals.x + ", " + vals.y + ", " + vals.fluxAuto + ", " + vals.fluxErrAuto + 
+            ", " + vals.magAuto + ", " + vals.magErrAuto + ", " + vals.background + ", " + 
+            vals.isoareaWorld + ", " + vals.SEFlags + ", " + vals.FWHM + ", " + vals.elongation + 
+            ", " + vals.ellipticity + ", " + vals.thetaImage + ", spoint(" + vals.ra*(Math.PI/180) + 
+            ", " + vals.dec*(Math.PI/180) + "))";
+            _pg_execute(client, qry, function(err) {
+                client.end();
+                if (err) {
+                    res.send(400, err);
+                    console.error(err);
+                    return false;
+                } else {
+                    res.send(200);
+                }
+                return;
+            });            
+        }
+    });    
+}
 
 var server = restify.createServer();
 server.use(restify.bodyParser({}));
 
-var buffer_sources = {}
-
 server.get('/scs/:cat/:ra/:dec/:sr/:band/:llim/:ulim/:order/:nmax/:format', scs);
-server.post('/skycam/db/:schema', init_skycam);
-server.del('/skycam/db/:schema', destroy_skycam);
-server.post('/skycam/tables/images/:schema/:headers', skycam_images_insert);
-server.get('/skycam/tables/images/:schema/:filename', skycam_images_get_by_filename);
-server.put('/skycam/tables/sources/buffer/:schema/:source', skycam_sources_add_source_to_buffer);
+
+server.post('/skycam/tables/images/:schema/:vals', skycam_images_insert);
+server.del('/skycam/tables/images/:schema/:img_id', skycam_images_delete_by_img_id);
+server.get('/skycam/tables/images/:schema/:img_id', skycam_images_get_by_img_id);
+
+var buffer_sources = {};
+server.put('/skycam/tables/sources/buffer/:schema/:vals', skycam_sources_add_source_to_buffer);
 server.post('/skycam/tables/sources/buffer/:schema', skycam_sources_flush_buffer_to_db);
+server.del('/skycam/tables/sources/buffer/:schema', skycam_sources_delete_buffer);
+server.get('/skycam/tables/sources/buffer', skycam_sources_get_buffer);
+
+server.post('/skycam/tables/sources/:schema/:vals', skycam_sources_insert);
+server.del('/skycam/tables/sources/:schema/:img_id', skycam_sources_delete_by_img_id);
+server.get('/skycam/tables/sources/:schema/:img_id', skycam_sources_get_by_img_id);
 
 server.pre(restify.CORS({
         credentials: true

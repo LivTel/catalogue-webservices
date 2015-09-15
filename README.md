@@ -3,11 +3,12 @@ catalogue-webservices
 
 # Overview
 
-Supported catalogues must be installed. See "Catalogue Installation" section for 
+Supported catalogues must be installed first. See "Catalogue Installation" section for 
 more details.
 
-The root path to the catalogue directory must be set in config.json. This is 
-`/cat/` by default, and has a structure like:
+In order to use the USNOB catalogue, the root path to the catalogue directory (containing the 
+usnob binary and catalogue binaries) must be set in config.json. This is  `/cat/` by default, 
+and has a structure like:
 
 >[eng@catalogue cat]$ ls  
 > apass  bin  src  usnob   skycam
@@ -20,34 +21,138 @@ where:
 * `apass` is the directory containing the APASS database.
 * `skycam` is the directory containing the SKYCAM database.
 
+Equivalently, to use the APASS and Skycam catalogues, the database parameters (db_\* and *_db_\*)
+must be set appropriately in config.json. These databases are currently not password protected.
+
 # Catalogues supported
 
 * APASS
 * USNOB
-* SKYCAM (output)
+* Skycam
 
-# Available Calls
+# Available Webservices
 
-These services are available by issuing a GET request to http://150.204.240.115:3000.
 
-#### Simple Cone Searches
+### Catalogue Queries
 
-Syntax:
 
-/scs/[CATALOGUE]/[RA]/[DEC]/[SR]/[MAGNITUDE\_FILTER\_COLUMN]/[BRIGHT\_MAG\_LIMIT]/[FAINT\_MAG\_LIMIT]/[ORDER\_BY\_COLUMN]/[MAX\_RETURNED\_ROWS]/[OUTPUT\_FORMAT]
+#### 1. Simple Cone Search (APASS, USNOB and Skycam)
+
+**HTTP Method**: GET
+
+**Syntax**:
+
+/scs/[CATALOGUE]/[RA]/[DEC]/[SR]/[MAGNITUDE\_FILTER\_COLUMN]/[BRIGHT\_MAG\_LIMIT]/
+[FAINT\_MAG\_LIMIT]/[ORDER\_BY\_COLUMN]/[MAX\_RETURNED\_ROWS]/[OUTPUT\_FORMAT]
 
 e.g.
 
-`http://150.204.240.115:3000/scs/usnob/45/15/2.0/rmag1/5/15/rmag1/1000/html`
+`http://localhost:3000/scs/apass/45/15/2.0/rmag/5/15/rmag/1000/html`
 
-Notes:
+**Returns**
+
+A list of targets satisfying the above criteria in either JSON, XML, HTML or CSV format.
+
+**Notes**:
 
 - Possible values of CATALOGUE include "usnob", "apass" and "skycam".
 - RA/DEC/SR are in degrees.
 - MAGNITUDE\_FILTER\_COLUMN can be any magnitude related column.
 - ORDER\_BY\_COLUMN can be any output column (except usnobref, raerrasec, decerrasec in USNOB queries).
 - MAX\_RETURNED\_ROWS shouldn't be too large for a large search radius!
-- OUTPUT\_FORMAT can be json, xml, html or csv.
+- OUTPUT\_FORMAT can be JSON, XML, HTML or CSV.
+
+***
+
+There are two ways to insert sources into the Skycam database. The first is non-buffered, adding a single source at a time (non-buffered). The second uses an internal buffer (buffered). For the latter, the sequence of HTTP requests is PUT then POST.
+
+#### 2. Insert Image (Skycam only)
+
+**HTTP Method**: POST
+
+**Syntax**:
+
+/skycam/tables/images/[SCHEMA_NAME]/[VALUES]
+
+e.g. 
+
+`http://localhost:3000/skycam/tables/images/skycamz/{"MJD": "56453.9897685", "AZDMD": 131.3999, "ALTDMD": 66.3945, "DATE_OBS": "2013-06-10T23%3A45%3A16", "RA_MAX": 256.891, "UTSTART": "23%3A45%3A16", "RA_MIN": 255.443, "ALTITUDE": 66.3945, "RA_CENT": 256.16746413, "CCDATEMP": -40, "FILENAME": "z_e_20130610_210_1_1_1.fits", "CCDSTEMP": -40, "DEC_MAX": 13.4933, "AZIMUTH": 131.3999, "DEC_MIN": 12.082, "DEC_CENT": 12.788429216, "ROTSKYPA": -34.650148}`
+
+**Returns**
+
+A JSON object with populated `img_id` and `mjd` fields.
+
+**Notes**:
+
+- [VALUES] is a JSON object. Keys required are listed by calling the webservice with an empty ({}) [VALUES] object.
+
+#### 3. Insert Non-Buffered Source (Skycam only)
+
+**HTTP Method**: POST
+
+**Syntax**: 
+
+/skycam/tables/sources/[SCHEMA_NAME]/[VALUES]
+
+e.g. 
+
+`http://localhost:3000/skycam/tables/sources/skycamz/{"mjd": 56453.9897685, "isoareaWorld": 0.00004097222, "magAuto": -8.8641, "ellipticity": 0.291, "img_id": "1", "SEFlags": 0,   "fluxAuto": 3512.75, "thetaImage": -14.71, "fluxErrAuto": 38.48057, "ra": 256.7084284141811, "background": 29.62897, "y": 18.0246, "x": 818.6285, "FWHM": 0.004684697, "dec": 12.557316425224261, "elongation": 1.411, "magErrAuto": 0.0119, "skycamref" : 1}`
+
+**Notes**:
+
+- [VALUES] is a JSON object. Keys required are listed by calling the webservice with an empty ({}) [VALUES] object.
+
+#### 4. Add Source to Internal Buffer (Skycam only)
+
+**HTTP Method**: PUT
+
+**Syntax**: 
+
+/skycam/tables/sources/buffer/[SCHEMA_NAME]/[VALUES]
+
+e.g.
+
+`http://localhost:3000/skycam/tables/sources/buffer/skycamz/{"mjd": 56453.9897685, "isoareaWorld": 4.097222e-05, "magAuto": -8.8641, "ellipticity": 0.291, "img_id": "1", "SEFlags": 0.0, "fluxAuto": 3512.75, "thetaImage": -14.71, "fluxErrAuto": 38.48057, "ra": 256.7084284141811, "background": 29.62897, "y": 18.0246, "x": 818.6285, "FWHM": 0.004684697, "dec": 12.557316425224261, "elongation": 1.411, "magErrAuto": 0.0119, "skycamref" : 1}`
+
+**Notes**:
+
+- [VALUES] is a JSON object. Keys required are listed by calling the webservice with an empty ({}) [VALUES] object.
+
+#### 5. Flush Buffer to Database (Skycam only)
+
+**HTTP Method**: POST
+
+**Syntax**: 
+
+/skycam/tables/sources/buffer/[SCHEMA_NAME]
+
+e.g.
+
+`http://localhost:3000/skycam/tables/sources/buffer/skycamz`
+
+#### 6. Get Buffer (Skycam only)
+
+**HTTP Method**: GET
+
+**Syntax**: 
+
+/skycam/tables/sources/buffer
+
+e.g.
+
+`http://localhost:3000/skycam/tables/sources/buffer`
+
+#### 7. Delete Buffer (Skycam only)
+
+**HTTP Method**: DELETE
+
+**Syntax**: 
+
+/skycam/tables/sources/buffer/[SCHEMA_NAME]
+
+e.g.
+
+`http://localhost:3000/skycam/tables/sources/buffer/skycamz`
 
 # Catalogue Installation
 
@@ -174,7 +279,11 @@ This can be done from the /cat/src/ folder with:
 
 `make usnob`
 
-### SKYCAM
+### Skycam
+
+It is preferable to copy over an existing database structure. The following does
+not discuss table layout; internal DDL functions (_init*) are used to initialise 
+the database structure. These DDL functions can be found in this distribution.
 
 #### creating the database
 
