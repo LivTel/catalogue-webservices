@@ -22,7 +22,7 @@ where:
 * `skycam` is the directory containing the SKYCAM database.
 
 Equivalently, to use the APASS and Skycam catalogues, the database parameters (db_\* and *_db_\*)
-must be set appropriately in config.json. These databases are currently not password protected.
+must be set accordingly in config.json. These databases are not password protected.
 
 # Catalogues supported
 

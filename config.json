@@ -1,14 +1,18 @@
 { 
-  "ws_port"         : "3000",
-  "apass_db_host"   : "catalogue",
-  "apass_db_user"   : "eng",
-  "apass_db_port"   : "5432",
-  "apass_db_name"   : "apass_dr9",
-  "skycam_db_host"  : "catalogue",
-  "skycam_db_user"  : "eng",
-  "skycam_db_port"  : "5433",
-  "skycam_db_name"  : "skycam",
-  "root_path"       : "/cat/"
+  "ws_port" : "3000",
+  "apass" : {
+    "db_host"   : "catalogue",
+    "db_user"   : "eng",
+    "db_port"   : "5432",
+    "db_name"   : "apass_dr9"
+  },
+  "skycam" : {
+    "db_host"  : "catalogue",
+    "db_user"  : "eng",
+    "db_port"  : "5433",
+    "db_name"  : "skycam"
+  },
+  "catalogue_root_path" : "/cat/"
 }
 
 

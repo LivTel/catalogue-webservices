@@ -77,7 +77,7 @@ function scs(req, res, next) {
             var ORDERBYCLAUSE   = ' ORDER BY ' + order;
             var LIMITCLAUSE     = ' LIMIT ' + nmax;
 
-            conString = "postgres://" + cfg.apass_db_user + "@" + cfg.apass_db_host + ":" + cfg.apass_db_port + "/" + cfg.apass_db_name;
+            conString = "postgres://" + cfg.apass.db_user + "@" + cfg.apass.db_host + ":" + cfg.apass.db_port + "/" + cfg.apass.db_name;
             pg.connect(conString, function(err, client) {
                 if(err) {
                     res.send(400, err);
@@ -145,7 +145,7 @@ function scs(req, res, next) {
             break;
         case 'usnob':
             console.log("using USNOB catalogue");
-            qry_cmd = cfg.root_path + 'bin/' + 'query_usnob';
+            qry_cmd = cfg.catalogue_root_path + 'bin/' + 'query_usnob';
             switch (band) {
                 case 'rmag1':
                     band = 'r1';
@@ -196,7 +196,7 @@ function scs(req, res, next) {
                     return false;
             }
 
-            qry_params =  ['-R', cfg.root_path + 'usnob', '-c', ra + ' ' + dec, '-r', sr*60., '-m', nmax, '-lm' + band, llim + ',' + ulim, '-s' + order];
+            qry_params =  ['-R', cfg.catalogue_root_path + 'usnob', '-c', ra + ' ' + dec, '-r', sr*60., '-m', nmax, '-lm' + band, llim + ',' + ulim, '-s' + order];
             console.log('executing query: ' + qry_cmd + ' with parameters ' + qry_params);
             var spawn = cp.spawn
             var child = spawn(qry_cmd, qry_params);
@@ -271,7 +271,7 @@ function skycam_images_delete_by_img_id(req, res, next) {
     schema_name = req.params.schema;
     img_id      = req.params.img_id;
     
-    conString = "postgres://" + cfg.skycam_db_user + "@" + cfg.skycam_db_host + ":" + cfg.skycam_db_port + "/" + cfg.skycam_db_name;
+    conString = "postgres://" + cfg.skycam.db_user + "@" + cfg.skycam.db_host + ":" + cfg.skycam.db_port + "/" + cfg.skycam.db_name;
     pg.connect(conString, function(err, client) {
         if(err) {
             res.send(400, err);
@@ -299,7 +299,7 @@ function skycam_images_get_by_img_id(req, res, next) {
     schema_name = req.params.schema;
     img_id      = req.params.img_id;
     
-    conString = "postgres://" + cfg.skycam_db_user + "@" + cfg.skycam_db_host + ":" + cfg.skycam_db_port + "/" + cfg.skycam_db_name;
+    conString = "postgres://" + cfg.skycam.db_user + "@" + cfg.skycam.db_host + ":" + cfg.skycam.db_port + "/" + cfg.skycam.db_name;
     pg.connect(conString, function(err, client) {
         if(err) {
             res.send(400, err);
@@ -372,7 +372,7 @@ function skycam_images_insert(req, res, next) {
         return false;
     }
     
-    conString = "postgres://" + cfg.skycam_db_user + "@" + cfg.skycam_db_host + ":" + cfg.skycam_db_port + "/" + cfg.skycam_db_name;
+    conString = "postgres://" + cfg.skycam.db_user + "@" + cfg.skycam.db_host + ":" + cfg.skycam.db_port + "/" + cfg.skycam.db_name;
     pg.connect(conString, function(err, client) {
         if(err) {
             res.send(400, err);
@@ -481,7 +481,7 @@ function skycam_sources_delete_by_img_id(req, res, next) {
     schema_name = req.params.schema;
     img_id      = req.params.img_id;
     
-    conString = "postgres://" + cfg.skycam_db_user + "@" + cfg.skycam_db_host + ":" + cfg.skycam_db_port + "/" + cfg.skycam_db_name;
+    conString = "postgres://" + cfg.skycam.db_user + "@" + cfg.skycam.db_host + ":" + cfg.skycam.db_port + "/" + cfg.skycam.db_name;
     pg.connect(conString, function(err, client) {
         if(err) {
             res.send(400, err);
@@ -528,7 +528,7 @@ function skycam_sources_flush_buffer_to_db(req, res, next) {
 
     valuesClause = valuesClause.substr(0, valuesClause.length-1)    // discard trailing comma
     
-    conString = "postgres://" + cfg.skycam_db_user + "@" + cfg.skycam_db_host + ":" + cfg.skycam_db_port + "/" + cfg.skycam_db_name;
+    conString = "postgres://" + cfg.skycam.db_user + "@" + cfg.skycam.db_host + ":" + cfg.skycam.db_port + "/" + cfg.skycam.db_name;
     pg.connect(conString, function(err, client) {
         if(err) {
             res.send(400, err);
@@ -564,7 +564,7 @@ function skycam_sources_get_by_img_id(req, res, next) {
     schema_name = req.params.schema;
     img_id      = req.params.img_id;
     
-    conString = "postgres://" + cfg.skycam_db_user + "@" + cfg.skycam_db_host + ":" + cfg.skycam_db_port + "/" + cfg.skycam_db_name;
+    conString = "postgres://" + cfg.skycam.db_user + "@" + cfg.skycam.db_host + ":" + cfg.skycam.db_port + "/" + cfg.skycam.db_name;
     pg.connect(conString, function(err, client) {
         if(err) {
             res.send(400, err);
@@ -639,7 +639,7 @@ function skycam_sources_insert(req, res, next) {
         return false;
     }
     
-    conString = "postgres://" + cfg.skycam_db_user + "@" + cfg.skycam_db_host + ":" + cfg.skycam_db_port + "/" + cfg.skycam_db_name;
+    conString = "postgres://" + cfg.skycam.db_user + "@" + cfg.skycam.db_host + ":" + cfg.skycam.db_port + "/" + cfg.skycam.db_name;
     pg.connect(conString, function(err, client) {
         if(err) {
             res.send(400, err);

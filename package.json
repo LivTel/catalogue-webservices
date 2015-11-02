@@ -29,7 +29,6 @@
   , "js2xmlparser" : "latest"
   , "node-json2html" : "latest"
   , "json2csv": "latest"
-  , "restify-async-json-body-parser" : "latest"
   }
 , "devDependencies": {
   }
