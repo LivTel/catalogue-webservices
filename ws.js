@@ -164,8 +164,9 @@ function scs(req, res, next) {
                     return false;
                 }
                 qry = "SELECT skycamref, xmatch_apassref, xmatch_usnobref, radeg as ra, decdeg as dec, raerrasec, decerrasec, nobs, \
-                       xmatch_apass_rollingmeanmag, xmatch_apass_rollingstdevmag, xmatch_usnob_rollingmeanmag, xmatch_usnob_rollingstdevmag, degrees(pos <-> spoint '(" + ra 
-                       + "d," + dec + "d)')*3600 as distance FROM " + cat + ".catalogue WHERE (pos @ scircle '<( " + ra + "d," + dec 
+                       xmatch_apass_brcolour, xmatch_usnob_brcolour, xmatch_apass_rollingmeanmag, xmatch_apass_rollingstdevmag, xmatch_usnob_rollingmeanmag, xmatch_usnob_rollingstdevmag, \
+                       xmatch_apass_distasec, xmatch_usnob_distasec, xmatch_apass_ntimesswitched, xmatch_usnob_ntimesswitched, \
+                       (pos <-> spoint '(" + ra + "d," + dec + "d)')*3600 as distance FROM " + cat + ".catalogue WHERE (pos @ scircle '<( " + ra + "d," + dec 
                        + "d)," + sr + "d>' = true) " + WHERECLAUSE_MAG + ORDERBYCLAUSE + LIMITCLAUSE;
                 _pg_execute(client, qry, function(err, result) {
                     client.end();
@@ -192,8 +193,8 @@ function scs(req, res, next) {
                         case 'html':
                             console.log("outputting as html");
                             var transform = {'tag':'tr', 
-                                             'html':'<td>${skycamref}</td><td>${xmatch_apassref}</td><td>${xmatch_usnobref}</td><td>${ra}</td><td>${dec}</td><td>${raerrasec}</td><td>${decerrasec}</td><td>${nobs}</td><td>${rolling_mean_apass_mag}</td><td>${rolling_stdev_apass_mag}</td><td>${rolling_mean_usnob_mag}</td><td>${rolling_stdev_usnob_mag}</td><td>${distance}</td>'};
-                            html = "<table cellpadding=3><tr><td><b>skycamref</b></td><td><b>xmatch_apassref</b></td><td><b>xmatch_usnobref</b></td><td><b>ra</b></td><td><b>dec</b></td><td><b>raerrasec</b></td><td><b>decerrasec<b/></td><td><b>nobs<b/></td><td><b>rolling_mean_apass_mag</b></td><td><b>rolling_stdev_apass_mag</b></td><td><b>rolling_mean_usnob_mag</b></td><td><b>rolling_stdev_usnob_mag</b></td><td><b>distance</b></td></tr>"
+                                             'html':'<td>${skycamref}</td><td>${xmatch_apassref}</td><td>${xmatch_usnobref}</td><td>${ra}</td><td>${dec}</td><td>${raerrasec}</td><td>${decerrasec}</td><td>${nobs}</td><td>${xmatch_apass_brcolour}</td><td>${xmatch_usnob_brcolour}</td><td>${xmatch_apass_rollingmeanmag}</td><td>${xmatch_apass_rollingstdevmag}</td><td>${xmatch_usnob_rollingmeanmag}</td><td>${xmatch_usnob_rollingstdevmag}</td><td>${xmatch_apass_distasec}</td><td>${xmatch_usnob_distasec}</td><td>${xmatch_apass_ntimesswitched}</td><td>${xmatch_usnob_ntimesswitched}</td><td>${distance}</td>'};
+                            html = "<table cellpadding=3><tr><td><b>skycamref</b></td><td><b>xmatch_apassref</b></td><td><b>xmatch_usnobref</b></td><td><b>ra</b></td><td><b>dec</b></td><td><b>raerrasec</b></td><td><b>decerrasec<b/></td><td><b>nobs<b/></td><td><b>xmatch_apass_brcolour<b/></td><td><b>xmatch_usnob_brcolour<b/></td><td><b>xmatch_apass_rollingmeanmag</b></td><td><b>xmatch_apass_rollingstdevmag</b></td><td><b>xmatch_usnob_rollingmeanmag</b></td><td><b>xmatch_usnob_rollingstdevmag</b></td><td><b>xmatch_apass_distasec</b></td><td><b>xmatch_usnob_distasec</b></td><td><b>xmatch_apass_ntimesswitched</b></td><td><b>xmatch_usnob_ntimesswitched</b></td><td><b>distance</b></td></tr>"
                                  + json2html.transform(result.rows, transform) 
                                  + "</table>";
                             res.header('Content-Type', 'text/html');
@@ -201,7 +202,7 @@ function scs(req, res, next) {
                             break;
                         case 'csv':
                             console.log("outputting as csv");
-                            fields = ['apassref', 'xmatch_apassref', 'xmatch_usnobref', 'ra', 'dec', 'raerrasec', 'decerrasec', 'nobs', 'rolling_mean_apass_mag', 'rolling_stdev_apass_mag', 'rolling_mean_usnob_mag', 'rolling_stdev_usnob_mag', 'distance'];               
+                            fields = ['apassref', 'xmatch_apassref', 'xmatch_usnobref', 'ra', 'dec', 'raerrasec', 'decerrasec', 'nobs', 'xmatch_apass_brcolour', 'xmatch_usnob_brcolour', 'xmatch_apass_rollingmeanmag', 'xmatch_apass_rollingstdevmag', 'xmatch_usnob_rollingmeanmag', 'xmatch_usnob_rollingstdevmag', 'xmatch_apass_distasec', 'xmatch_usnob_distasec', 'xmatch_apass_ntimesswitched', 'xmatch_usnob_ntimesswitched', 'distance'];               
                             json2csv({ data: result.rows, fields: fields }, function(err, csv) {
                                 if (err) {
                                     res.send(400, err);
@@ -362,7 +363,8 @@ function skycam_catalogue_add_source_to_buffer(req, res, next) {
         return false;
     }
     // check [vals] is populated with all necessary keys required to ingest into database
-    keys = ['xmatch_apassref',
+    keys = ['skycamref',
+            'xmatch_apassref',
             'xmatch_apass_distasec',
             'xmatch_usnobref',
             'xmatch_usnob_distasec',
@@ -371,10 +373,14 @@ function skycam_catalogue_add_source_to_buffer(req, res, next) {
             'raerrasec', 
             'decerrasec', 
             'nobs',
+            'xmatch_apass_brcolour',
+            'xmatch_usnob_brcolour',            
             'xmatch_apass_rollingmeanmag',
             'xmatch_apass_rollingstdevmag',
             'xmatch_usnob_rollingmeanmag',
-            'xmatch_usnob_rollingstdevmag'     
+            'xmatch_usnob_rollingstdevmag',
+            'xmatch_apass_ntimesswitched',
+            'xmatch_usnob_ntimesswitched'
     ];
     keys_missing = [];
     keys.forEach(function(entry) {
@@ -419,8 +425,8 @@ function skycam_catalogue_delete_buffer(req, res, next) {
 
 function skycam_catalogue_flush_buffer_to_db(req, res, next) {
     console.log("received a skycam_catalogue_flush_buffer_to_db request");
-    schema = req.params.schema;  
-    
+    schema = req.params.schema; 
+
     if (buffer_catalogue[schema] == undefined) {
         err = {'message' : 'schema doesn\'t exist in buffer or buffer is empty'};
         res.send(400, err);
@@ -431,10 +437,12 @@ function skycam_catalogue_flush_buffer_to_db(req, res, next) {
     // construct a statement for bulk insertion
     valuesClause = "";
     buffer_catalogue[schema].forEach(function(entry) {
-        valuesClause += "(" + entry.xmatch_apassref + ", " + entry.xmatch_apass_distasec + 
+        if (entry.skycamref === null) {
+            entry.skycamref = "nextval('" + schema + ".catalogue_skycamref_seq')";
+        }
+        valuesClause += "(" + entry.skycamref + ", " + entry.xmatch_apassref + ", " + entry.xmatch_apass_distasec + 
             ", '" + entry.xmatch_usnobref + "', " + entry.xmatch_usnob_distasec + ", " + entry.radeg + ", " + entry.decdeg + ", " + 
-            entry.raerrasec + ", " + entry.decerrasec + ", " + entry.nobs + ", " + entry.xmatch_apass_rollingmeanmag + ", " + entry.xmatch_apass_rollingstdevmag + ", " + 
-            entry.xmatch_usnob_rollingmeanmag + ", " + entry.xmatch_usnob_rollingstdevmag + ", spoint(" + entry.radeg*(Math.PI/180) + ", " + entry.decdeg*(Math.PI/180) + ")),";
+            entry.raerrasec + ", " + entry.decerrasec + ", " + entry.nobs + ", " +entry.xmatch_apass_brcolour + ", " + entry.xmatch_usnob_brcolour + ", "+ entry.xmatch_apass_rollingmeanmag + ", " + entry.xmatch_apass_rollingstdevmag + ", " + entry.xmatch_usnob_rollingmeanmag + ", " + entry.xmatch_usnob_rollingstdevmag + ", " + entry.xmatch_apass_ntimesswitched + ", " + entry.xmatch_usnob_ntimesswitched + ", spoint(" + entry.radeg*(Math.PI/180) + ", " + entry.decdeg*(Math.PI/180) + ")),";
     });
 
     valuesClause = valuesClause.substr(0, valuesClause.length-1)    // discard trailing comma
@@ -446,9 +454,10 @@ function skycam_catalogue_flush_buffer_to_db(req, res, next) {
             console.error(err);
             return false;
         } else {
-            qry = "INSERT INTO " + schema + ".catalogue(xmatch_apassref, xmatch_apass_distasec, xmatch_usnobref, xmatch_usnob_distasec, \
-            radeg, decdeg, raerrasec, decerrasec, nobs, xmatch_apass_rollingmeanmag, xmatch_apass_rollingstdevmag, xmatch_usnob_rollingmeanmag, \
-            xmatch_usnob_rollingstdevmag, pos) VALUES " + valuesClause;
+            qry = "INSERT INTO " + schema + ".catalogue(skycamref, xmatch_apassref, xmatch_apass_distasec, xmatch_usnobref, xmatch_usnob_distasec, \
+            radeg, decdeg, raerrasec, decerrasec, nobs, xmatch_apass_brcolour, xmatch_usnob_brcolour, xmatch_apass_rollingmeanmag, xmatch_apass_rollingstdevmag, \
+            xmatch_usnob_rollingmeanmag, xmatch_usnob_rollingstdevmag, xmatch_apass_ntimesswitched, xmatch_usnob_ntimesswitched, pos) VALUES " + valuesClause + " ON CONFLICT \
+            (skycamref) DO UPDATE SET xmatch_apassref=excluded.xmatch_apassref, xmatch_apass_distasec=excluded.xmatch_apass_distasec, xmatch_usnobref=excluded.xmatch_usnobref, xmatch_usnob_distasec=excluded.xmatch_usnob_distasec, radeg=excluded.radeg, decdeg=excluded.decdeg, raerrasec=excluded.raerrasec, decerrasec=excluded.decerrasec, nobs=excluded.nobs, xmatch_apass_brcolour=excluded.xmatch_apass_brcolour, xmatch_usnob_brcolour=excluded.xmatch_usnob_brcolour, xmatch_apass_rollingmeanmag=excluded.xmatch_apass_rollingmeanmag, xmatch_apass_rollingstdevmag=excluded.xmatch_apass_rollingstdevmag, xmatch_usnob_rollingmeanmag=excluded.xmatch_usnob_rollingmeanmag, xmatch_usnob_rollingstdevmag=excluded.xmatch_usnob_rollingstdevmag, xmatch_apass_ntimesswitched=excluded.xmatch_apass_ntimesswitched, xmatch_usnob_ntimesswitched=excluded.xmatch_usnob_ntimesswitched, pos=spoint(excluded.radeg*(PI()/180), excluded.decdeg*(PI()/180));"
             _pg_execute(client, qry, function(err) {
                 client.end();
                 if (err) {
@@ -516,7 +525,8 @@ function skycam_catalogue_insert(req, res, next) {
         return false;
     }
     // check [vals] is populated with all necessary keys required to ingest into database
-    keys = ['xmatch_apassref',
+    keys = ['skycamref',
+            'xmatch_apassref',
             'xmatch_apass_distasec',
             'xmatch_usnobref',
             'xmatch_usnob_distasec',
@@ -525,10 +535,14 @@ function skycam_catalogue_insert(req, res, next) {
             'raerrasec', 
             'decerrasec', 
             'nobs',
+            'xmatch_apass_brcolour',
+            'xmatch_usnob_brcolour',  
             'xmatch_apass_rollingmeanmag',
             'xmatch_apass_rollingstdevmag',
             'xmatch_usnob_rollingmeanmag',
-            'xmatch_usnob_rollingstdevmag'     
+            'xmatch_usnob_rollingstdevmag',
+            'xmatch_apass_ntimesswitched',
+            'xmatch_usnob_ntimesswitched'
     ];
     keys_missing = [];
     keys.forEach(function(entry) {
@@ -552,12 +566,14 @@ function skycam_catalogue_insert(req, res, next) {
             console.error(err);
             return false;
         } else {
-            qry = "INSERT INTO " + schema + ".catalogue(xmatch_apassref, xmatch_apass_distasec, xmatch_usnobref, xmatch_usnob_distasec, \
-            radeg, decdeg, raerrasec, decerrasec, nobs, xmatch_apass_rollingmeanmag, xmatch_apass_rollingstdevmag, xmatch_usnob_rollingmeanmag, \
-            xmatch_usnob_rollingstdevmag, pos) VALUES " + "(" + vals.xmatch_apassref + ", " + vals.xmatch_apass_distasec + 
-            ", '" + vals.xmatch_usnobref + "', " + vals.xmatch_usnob_distasec + ", " + vals.radeg + ", " + vals.decdeg + ", " + 
-            vals.raerrasec + ", " + vals.decerrasec + ", " + vals.nobs + ", " + vals.xmatch_apass_rollingmeanmag + ", " + vals.xmatch_apass_rollingstdevmag + ", " + 
-            vals.xmatch_usnob_rollingmeanmag + ", " + vals.xmatch_usnob_rollingstdevmag + ", spoint(" + vals.radeg*(Math.PI/180) + ", " + vals.decdeg*(Math.PI/180) + "))";
+            if (vals.skycamref === null) {
+                vals.skycamref = "nextval('" + schema + ".catalogue_skycamref_seq')";
+            }
+            qry = "INSERT INTO " + schema + ".catalogue(skycamref, xmatch_apassref, xmatch_apass_distasec, xmatch_usnobref, xmatch_usnob_distasec, \
+            radeg, decdeg, raerrasec, decerrasec, nobs, xmatch_apass_brcolour, xmatch_usnob_brcolour, xmatch_apass_rollingmeanmag, xmatch_apass_rollingstdevmag, xmatch_usnob_rollingmeanmag, \
+            xmatch_usnob_rollingstdevmag, xmatch_apass_ntimesswitched, xmatch_usnob_ntimesswitched, pos) VALUES " + "(" + vals.skycamref + ", " + 
+            vals.xmatch_apassref + ", " + vals.xmatch_apass_distasec + ", '" + vals.xmatch_usnobref + "', " + vals.xmatch_usnob_distasec + ", " + vals.radeg + ", " + vals.decdeg + ", " + 
+            vals.raerrasec + ", " + vals.decerrasec + ", " + vals.nobs + ", " + vals.xmatch_apass_brcolour + ", " + vals.xmatch_usnob_brcolour + ", " + vals.xmatch_apass_rollingmeanmag + ", " + vals.xmatch_apass_rollingstdevmag + ", " + vals.xmatch_usnob_rollingmeanmag + ", " + vals.xmatch_usnob_rollingstdevmag + ", " + vals.xmatch_apass_ntimesswitched + ", " + vals.xmatch_usnob_ntimesswitched + ", spoint(" + vals.radeg*(Math.PI/180) + ", " + vals.decdeg*(Math.PI/180) + "))";
             _pg_execute(client, qry, function(err) {
                 client.end();
                 if (err) {
@@ -1038,13 +1054,13 @@ server.get('/skycam/tables/images/:schema/img_id/:img_id', skycam_images_get_by_
 server.get('/skycam/tables/images/:schema/filename/:filename', skycam_images_get_by_filename);
 
 var buffer_catalogue = {};
-server.put('/skycam/tables/catalogue/buffer/:schema/:vals', skycam_catalogue_add_source_to_buffer);
-server.post('/skycam/tables/catalogue/buffer/:schema', skycam_catalogue_flush_buffer_to_db);
+server.put('/skycam/tables/catalogue/buffer/:schema/:vals/', skycam_catalogue_add_source_to_buffer);
+server.post('/skycam/tables/catalogue/buffer/:schema/', skycam_catalogue_flush_buffer_to_db);
 server.del('/skycam/tables/catalogue/buffer/:schema', skycam_catalogue_delete_buffer);
 server.get('/skycam/tables/catalogue/buffer', skycam_catalogue_get_buffer);
 
 server.get('/skycam/tables/catalogue/:schema/:skycamref', skycam_catalogue_get_by_skycamref);
-server.post('/skycam/tables/catalogue/:schema/:vals', skycam_catalogue_insert);
+server.post('/skycam/tables/catalogue/:schema/:vals/', skycam_catalogue_insert);
     
 var buffer_sources = {};
 server.put('/skycam/tables/sources/buffer/:schema/:vals', skycam_sources_add_source_to_buffer);

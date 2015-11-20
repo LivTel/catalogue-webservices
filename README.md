@@ -205,6 +205,19 @@ used to load the functions. Change instances of LANGUAGE 'C' to LANGUAGE 'c'
 
 `psql apass < /usr/share/pgsql/contrib/pg_sphere.sql`
 
+* (UPGRADING POSTGRESQL)
+
+Use the pg_upgrade command. This will initially fail due to not having a 
+compatible version of pgsphere. This will need to be recompiled. The above
+should work, but a more recent method is the following.
+
+Obtaining the most recent version from the postgres yum repo. You will need 
+both the server and packages. Clone the pgsphere github: 
+https://github.com/mnullmei/pgsphere.git. Before compiling, you will 
+need to symlink/usr/include/pgsql to point to the upgraded version's headers 
+(e.g. /usr/pgsql-9.5/include/). The resulting pg_sphere.so will need to be 
+put in the upgraded version's lib folder (e.g. /usr/pgsql-9.5/lib/).
+
 * after adding pgsphere support, create table "stars":
 
 `psql: create table stars(id bigserial primary key not null, name text not   
