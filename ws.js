@@ -22,7 +22,7 @@ function _pg_execute(client, qry, callback) {
         if (qry.length < 1024) {
             console.log('executed query', "\"" + qry + "\"");
         } else { 
-            console.log('executed query', "\"" + qry.substr(0,1024) + " ...\""); 
+            console.log('executed query', "\"" + qry.substr(0,2048) + " ...\""); 
         }
         callback(err, result);
     });
@@ -352,7 +352,7 @@ function scs(req, res, next) {
 
 function skycam_catalogue_add_source_to_buffer(req, res, next) {
     console.log("received a skycam_catalogue_add_source_to_buffer request");
-    schema = req.params.schema;    
+    uuid = req.params.uuid;
     
     // check [vals] argument is valid JSON
     try {
@@ -362,12 +362,15 @@ function skycam_catalogue_add_source_to_buffer(req, res, next) {
         console.error(err);
         return false;
     }
+    
     // check [vals] is populated with all necessary keys required to ingest into database
     keys = ['skycamref',
             'xmatch_apassref',
             'xmatch_apass_distasec',
             'xmatch_usnobref',
             'xmatch_usnob_distasec',
+            'firstobs_date',
+            'lastobs_date',
             'radeg',
             'decdeg', 
             'raerrasec', 
@@ -397,28 +400,28 @@ function skycam_catalogue_add_source_to_buffer(req, res, next) {
         return false;
     }
     
-    // add requested [schema] name as key in JSON buffer object if it doesn't exist
-    if (!(schema in buffer_catalogue)) {
-        buffer_catalogue[schema] = [];
+    // add requested [uuid] name as key in JSON buffer object if it doesn't exist
+    if (!(uuid in buffer_catalogue)) {
+        buffer_catalogue[uuid] = [];
     }
     
-    buffer_catalogue[schema].push(vals);
+    buffer_catalogue[uuid].push(vals);
     res.send(200);
     return;
 }
 
 function skycam_catalogue_delete_buffer(req, res, next) {
     console.log("received a skycam_catalogue_delete_buffer request");
-    schema  = req.params.schema;  
+    uuid  = req.params.uuid;  
     
-    if (buffer_catalogue[schema] == undefined) {
-        err = {'message' : 'schema doesn\'t exist in buffer or buffer is empty'};
+    if (buffer_catalogue[uuid] == undefined) {
+        err = {'message' : 'uuid doesn\'t exist in buffer or buffer is empty'};
         res.send(400, err);
         console.error(err);
         return false;
     }
     
-    delete buffer_catalogue[schema];
+    delete buffer_catalogue[uuid];
     res.send(200);
     return;
 }
@@ -426,9 +429,10 @@ function skycam_catalogue_delete_buffer(req, res, next) {
 function skycam_catalogue_flush_buffer_to_db(req, res, next) {
     console.log("received a skycam_catalogue_flush_buffer_to_db request");
     schema = req.params.schema; 
+    uuid = req.params.uuid
 
-    if (buffer_catalogue[schema] == undefined) {
-        err = {'message' : 'schema doesn\'t exist in buffer or buffer is empty'};
+    if (buffer_catalogue[uuid] == undefined) {
+        err = {'message' : 'uuid doesn\'t exist in buffer or buffer is empty'};
         res.send(400, err);
         console.error(err);
         return false;
@@ -436,13 +440,13 @@ function skycam_catalogue_flush_buffer_to_db(req, res, next) {
     
     // construct a statement for bulk insertion
     valuesClause = "";
-    buffer_catalogue[schema].forEach(function(entry) {
+    buffer_catalogue[uuid].forEach(function(entry) {
         if (entry.skycamref === null) {
             entry.skycamref = "nextval('" + schema + ".catalogue_skycamref_seq')";
         }
         valuesClause += "(" + entry.skycamref + ", " + entry.xmatch_apassref + ", " + entry.xmatch_apass_distasec + 
-            ", '" + entry.xmatch_usnobref + "', " + entry.xmatch_usnob_distasec + ", " + entry.radeg + ", " + entry.decdeg + ", " + 
-            entry.raerrasec + ", " + entry.decerrasec + ", " + entry.nobs + ", " +entry.xmatch_apass_brcolour + ", " + entry.xmatch_usnob_brcolour + ", "+ entry.xmatch_apass_rollingmeanmag + ", " + entry.xmatch_apass_rollingstdevmag + ", " + entry.xmatch_usnob_rollingmeanmag + ", " + entry.xmatch_usnob_rollingstdevmag + ", " + entry.xmatch_apass_ntimesswitched + ", " + entry.xmatch_usnob_ntimesswitched + ", spoint(" + entry.radeg*(Math.PI/180) + ", " + entry.decdeg*(Math.PI/180) + ")),";
+            ", '" + entry.xmatch_usnobref + "', " + entry.xmatch_usnob_distasec + ", '" + entry.firstobs_date + "', '" + entry.lastobs_date + "', " + entry.radeg + ", " + entry.decdeg + ", " + 
+            entry.raerrasec + ", " + entry.decerrasec + ", " + entry.nobs + ", " + entry.xmatch_apass_brcolour + ", " + entry.xmatch_usnob_brcolour + ", "+ entry.xmatch_apass_rollingmeanmag + ", " + entry.xmatch_apass_rollingstdevmag + ", " + entry.xmatch_usnob_rollingmeanmag + ", " + entry.xmatch_usnob_rollingstdevmag + ", " + entry.xmatch_apass_ntimesswitched + ", " + entry.xmatch_usnob_ntimesswitched + ", spoint(" + entry.radeg*(Math.PI/180) + ", " + entry.decdeg*(Math.PI/180) + ")),";
     });
 
     valuesClause = valuesClause.substr(0, valuesClause.length-1)    // discard trailing comma
@@ -455,18 +459,19 @@ function skycam_catalogue_flush_buffer_to_db(req, res, next) {
             return false;
         } else {
             qry = "INSERT INTO " + schema + ".catalogue(skycamref, xmatch_apassref, xmatch_apass_distasec, xmatch_usnobref, xmatch_usnob_distasec, \
-            radeg, decdeg, raerrasec, decerrasec, nobs, xmatch_apass_brcolour, xmatch_usnob_brcolour, xmatch_apass_rollingmeanmag, xmatch_apass_rollingstdevmag, \
+            firstobs_date, lastobs_date, radeg, decdeg, raerrasec, decerrasec, nobs, xmatch_apass_brcolour, xmatch_usnob_brcolour, xmatch_apass_rollingmeanmag, xmatch_apass_rollingstdevmag, \
             xmatch_usnob_rollingmeanmag, xmatch_usnob_rollingstdevmag, xmatch_apass_ntimesswitched, xmatch_usnob_ntimesswitched, pos) VALUES " + valuesClause + " ON CONFLICT \
-            (skycamref) DO UPDATE SET xmatch_apassref=excluded.xmatch_apassref, xmatch_apass_distasec=excluded.xmatch_apass_distasec, xmatch_usnobref=excluded.xmatch_usnobref, xmatch_usnob_distasec=excluded.xmatch_usnob_distasec, radeg=excluded.radeg, decdeg=excluded.decdeg, raerrasec=excluded.raerrasec, decerrasec=excluded.decerrasec, nobs=excluded.nobs, xmatch_apass_brcolour=excluded.xmatch_apass_brcolour, xmatch_usnob_brcolour=excluded.xmatch_usnob_brcolour, xmatch_apass_rollingmeanmag=excluded.xmatch_apass_rollingmeanmag, xmatch_apass_rollingstdevmag=excluded.xmatch_apass_rollingstdevmag, xmatch_usnob_rollingmeanmag=excluded.xmatch_usnob_rollingmeanmag, xmatch_usnob_rollingstdevmag=excluded.xmatch_usnob_rollingstdevmag, xmatch_apass_ntimesswitched=excluded.xmatch_apass_ntimesswitched, xmatch_usnob_ntimesswitched=excluded.xmatch_usnob_ntimesswitched, pos=spoint(excluded.radeg*(PI()/180), excluded.decdeg*(PI()/180));"
-            _pg_execute(client, qry, function(err) {
+            (skycamref) DO UPDATE SET xmatch_apassref=excluded.xmatch_apassref, xmatch_apass_distasec=excluded.xmatch_apass_distasec, xmatch_usnobref=excluded.xmatch_usnobref, xmatch_usnob_distasec=excluded.xmatch_usnob_distasec, lastobs_date=excluded.lastobs_date, radeg=excluded.radeg, decdeg=excluded.decdeg, raerrasec=excluded.raerrasec, decerrasec=excluded.decerrasec, nobs=excluded.nobs, xmatch_apass_brcolour=excluded.xmatch_apass_brcolour, xmatch_usnob_brcolour=excluded.xmatch_usnob_brcolour, xmatch_apass_rollingmeanmag=excluded.xmatch_apass_rollingmeanmag, xmatch_apass_rollingstdevmag=excluded.xmatch_apass_rollingstdevmag, xmatch_usnob_rollingmeanmag=excluded.xmatch_usnob_rollingmeanmag, xmatch_usnob_rollingstdevmag=excluded.xmatch_usnob_rollingstdevmag, xmatch_apass_ntimesswitched=excluded.xmatch_apass_ntimesswitched, xmatch_usnob_ntimesswitched=excluded.xmatch_usnob_ntimesswitched, pos=spoint(excluded.radeg*(PI()/180), excluded.decdeg*(PI()/180)) RETURNING skycamref";
+            _pg_execute(client, qry, function(err, result) {
                 client.end();
                 if (err) {
                     res.send(400, err);
                     console.error(err);
+                    delete buffer_catalogue[uuid];    // sometimes this can clear an UPSERT error (code 21000)
                     return false;
                 } else {
-                    res.send(200);
-                    buffer_catalogue[schema] = [];    // complete flushing process by emptying buffer for this [schema]
+                    res.send(result.rows);
+                    delete buffer_catalogue[uuid];    // complete flushing process by emptying buffer
                 }
                 return;
             });            
@@ -530,6 +535,8 @@ function skycam_catalogue_insert(req, res, next) {
             'xmatch_apass_distasec',
             'xmatch_usnobref',
             'xmatch_usnob_distasec',
+            'firstobs_date',
+            'lastobs_date',
             'radeg',
             'decdeg', 
             'raerrasec', 
@@ -570,10 +577,8 @@ function skycam_catalogue_insert(req, res, next) {
                 vals.skycamref = "nextval('" + schema + ".catalogue_skycamref_seq')";
             }
             qry = "INSERT INTO " + schema + ".catalogue(skycamref, xmatch_apassref, xmatch_apass_distasec, xmatch_usnobref, xmatch_usnob_distasec, \
-            radeg, decdeg, raerrasec, decerrasec, nobs, xmatch_apass_brcolour, xmatch_usnob_brcolour, xmatch_apass_rollingmeanmag, xmatch_apass_rollingstdevmag, xmatch_usnob_rollingmeanmag, \
-            xmatch_usnob_rollingstdevmag, xmatch_apass_ntimesswitched, xmatch_usnob_ntimesswitched, pos) VALUES " + "(" + vals.skycamref + ", " + 
-            vals.xmatch_apassref + ", " + vals.xmatch_apass_distasec + ", '" + vals.xmatch_usnobref + "', " + vals.xmatch_usnob_distasec + ", " + vals.radeg + ", " + vals.decdeg + ", " + 
-            vals.raerrasec + ", " + vals.decerrasec + ", " + vals.nobs + ", " + vals.xmatch_apass_brcolour + ", " + vals.xmatch_usnob_brcolour + ", " + vals.xmatch_apass_rollingmeanmag + ", " + vals.xmatch_apass_rollingstdevmag + ", " + vals.xmatch_usnob_rollingmeanmag + ", " + vals.xmatch_usnob_rollingstdevmag + ", " + vals.xmatch_apass_ntimesswitched + ", " + vals.xmatch_usnob_ntimesswitched + ", spoint(" + vals.radeg*(Math.PI/180) + ", " + vals.decdeg*(Math.PI/180) + "))";
+            firstobs_date, lastobs_date, radeg, decdeg, raerrasec, decerrasec, nobs, xmatch_apass_brcolour, xmatch_usnob_brcolour, xmatch_apass_rollingmeanmag, xmatch_apass_rollingstdevmag, \ xmatch_usnob_rollingmeanmag, xmatch_usnob_rollingstdevmag, xmatch_apass_ntimesswitched, xmatch_usnob_ntimesswitched, pos) VALUES " + "(" + vals.skycamref + ", " + 
+            vals.xmatch_apassref + ", " + vals.xmatch_apass_distasec + ", '" + vals.xmatch_usnobref + "', " + vals.xmatch_usnob_distasec + ", '" + vals.firstobs_date + "', '" + vals.lastobs_date + "', " + vals.radeg + ", " + vals.decdeg + ", " + vals.raerrasec + ", " + vals.decerrasec + ", " + vals.nobs + ", " + vals.xmatch_apass_brcolour + ", " + vals.xmatch_usnob_brcolour + ", " + vals.xmatch_apass_rollingmeanmag + ", " + vals.xmatch_apass_rollingstdevmag + ", " + vals.xmatch_usnob_rollingmeanmag + ", " + vals.xmatch_usnob_rollingstdevmag + ", " + vals.xmatch_apass_ntimesswitched + ", " + vals.xmatch_usnob_ntimesswitched + ", spoint(" + vals.radeg*(Math.PI/180) + ", " + vals.decdeg*(Math.PI/180) + "))";
             _pg_execute(client, qry, function(err) {
                 client.end();
                 if (err) {
@@ -779,7 +784,7 @@ function skycam_images_insert(req, res, next) {
 
 function skycam_sources_add_source_to_buffer(req, res, next) {
     console.log("received a skycam_sources_add_source_to_buffer request");
-    schema = req.params.schema;    
+    uuid = req.params.uuid;    
     
     // check [vals] argument is valid JSON
     try {
@@ -793,21 +798,21 @@ function skycam_sources_add_source_to_buffer(req, res, next) {
     keys = ['img_id',
             'skycamref',
             'mjd', 
-            'ra', 
-            'dec', 
-            'x', 
-            'y', 
-            'fluxAuto', 
-            'fluxErrAuto', 
-            'magAuto', 
-            'magErrAuto', 
+            'radeg', 
+            'decdeg', 
+            'x_pix', 
+            'y_pix', 
+            'flux', 
+            'flux_err', 
+            'inst_mag', 
+            'inst_mag_err', 
             'background', 
-            'isoareaWorld', 
-            'SEFlags', 
-            'FWHM', 
+            'isoarea_world', 
+            'seflags', 
+            'fwhm', 
             'elongation', 
             'ellipticity',
-            'thetaImage'
+            'theta_image'
     ];
     keys_missing = [];
     keys.forEach(function(entry) {
@@ -824,28 +829,28 @@ function skycam_sources_add_source_to_buffer(req, res, next) {
         return false;
     }
     
-    // add requested [schema] name as key in JSON buffer object if it doesn't exist
-    if (!(schema in buffer_sources)) {
-        buffer_sources[schema] = [];
+    // add requested [uuid] name as key in JSON buffer object if it doesn't exist
+    if (!(uuid in buffer_sources)) {
+        buffer_sources[uuid] = [];
     }
     
-    buffer_sources[schema].push(vals);
+    buffer_sources[uuid].push(vals);
     res.send(200);
     return;
 }
 
 function skycam_sources_delete_buffer(req, res, next) {
     console.log("received a skycam_sources_delete_buffer request");
-    schema  = req.params.schema;  
+    uuid  = req.params.uuid;  
     
-    if (buffer_sources[schema] == undefined) {
-        err = {'message' : 'schema doesn\'t exist in buffer or buffer is empty'};
+    if (buffer_sources[uuid] == undefined) {
+        err = {'message' : 'uuid doesn\'t exist in buffer or buffer is empty'};
         res.send(400, err);
         console.error(err);
         return false;
     }
     
-    delete buffer_sources[schema];
+    delete buffer_sources[uuid];
     res.send(200);
     return;
 }
@@ -881,9 +886,10 @@ function skycam_sources_delete_by_img_id(req, res, next) {
 function skycam_sources_flush_buffer_to_db(req, res, next) {
     console.log("received a skycam_sources_flush_buffer_to_db request");
     schema = req.params.schema;  
+    uuid = req.params.uuid;
     
-    if (buffer_sources[schema] == undefined) {
-        err = {'message' : 'schema doesn\'t exist in buffer or buffer is empty'};
+    if (buffer_sources[uuid] == undefined) {
+        err = {'message' : 'uuid doesn\'t exist in buffer or buffer is empty'};
         res.send(400, err);
         console.error(err);
         return false;
@@ -891,12 +897,12 @@ function skycam_sources_flush_buffer_to_db(req, res, next) {
     
     // construct a statement for bulk insertion
     valuesClause = "";
-    buffer_sources[schema].forEach(function(entry) {
-        valuesClause += "(" + entry.img_id + ", " + entry.skycamref + ", " + entry.mjd + ", " + entry.ra + ", " + entry.dec + ", " + entry.x + 
-        ", " + entry.y + ", " + entry.fluxAuto + ", " + entry.fluxErrAuto + ", " + entry.magAuto + ", " + entry.magErrAuto + 
-        ", " + entry.background + ", " + entry.isoareaWorld + ", " + entry.SEFlags + ", " + entry.FWHM + ", " + 
-        entry.elongation + ", " + entry.ellipticity + ", " + entry.thetaImage + ", spoint(" + entry.ra*(Math.PI/180) + 
-        ", " + entry.dec*(Math.PI/180) + ")),";
+    buffer_sources[uuid].forEach(function(entry) {
+        valuesClause += "(" + entry.img_id + ", " + entry.skycamref + ", " + entry.mjd + ", " + entry.radeg + ", " + entry.decdeg + ", " + entry.x_pix + 
+        ", " + entry.y_pix + ", " + entry.flux + ", " + entry.flux_err + ", " + entry.inst_mag + ", " + entry.inst_mag_err + 
+        ", " + entry.background + ", " + entry.isoarea_world + ", " + entry.seflags + ", " + entry.fwhm + ", " + 
+        entry.elongation + ", " + entry.ellipticity + ", " + entry.theta_image + ", spoint(" + entry.radeg*(Math.PI/180) + 
+        ", " + entry.decdeg*(Math.PI/180) + ")),";
     });
 
     valuesClause = valuesClause.substr(0, valuesClause.length-1)    // discard trailing comma
@@ -908,7 +914,7 @@ function skycam_sources_flush_buffer_to_db(req, res, next) {
             console.error(err);
             return false;
         } else {
-            qry = "INSERT INTO " + schema + ".sources(img_id, skycamref, mjd, ra, dec, x_pix, y_pix, flux, flux_err,\
+            qry = "INSERT INTO " + schema + ".sources(img_id, skycamref, mjd, radeg, decdeg, x_pix, y_pix, flux, flux_err,\
             inst_mag, inst_mag_err, background, isoarea_world, seflags, fwhm, elongation, ellipticity,\
             theta_image, pos) VALUES " + valuesClause;
             _pg_execute(client, qry, function(err) {
@@ -916,10 +922,11 @@ function skycam_sources_flush_buffer_to_db(req, res, next) {
                 if (err) {
                     res.send(400, err);
                     console.error(err);
+                    delete buffer_sources[uuid]     // sometimes this can clear an INSERT error (code 21000)
                     return false;
                 } else {
                     res.send(200);
-                    buffer_sources[schema] = [];    // complete flushing process by emptying buffer for this [schema]
+                    delete buffer_sources[uuid];    // complete flushing process by emptying buffer
                 }
                 return;
             });            
@@ -1054,18 +1061,18 @@ server.get('/skycam/tables/images/:schema/img_id/:img_id', skycam_images_get_by_
 server.get('/skycam/tables/images/:schema/filename/:filename', skycam_images_get_by_filename);
 
 var buffer_catalogue = {};
-server.put('/skycam/tables/catalogue/buffer/:schema/:vals/', skycam_catalogue_add_source_to_buffer);
-server.post('/skycam/tables/catalogue/buffer/:schema/', skycam_catalogue_flush_buffer_to_db);
-server.del('/skycam/tables/catalogue/buffer/:schema', skycam_catalogue_delete_buffer);
+server.put('/skycam/tables/catalogue/buffer/:uuid/:vals/', skycam_catalogue_add_source_to_buffer);
+server.post('/skycam/tables/catalogue/buffer/:schema/:uuid/', skycam_catalogue_flush_buffer_to_db);
+server.del('/skycam/tables/catalogue/buffer/:uuid/', skycam_catalogue_delete_buffer);
 server.get('/skycam/tables/catalogue/buffer', skycam_catalogue_get_buffer);
 
 server.get('/skycam/tables/catalogue/:schema/:skycamref', skycam_catalogue_get_by_skycamref);
 server.post('/skycam/tables/catalogue/:schema/:vals/', skycam_catalogue_insert);
     
 var buffer_sources = {};
-server.put('/skycam/tables/sources/buffer/:schema/:vals', skycam_sources_add_source_to_buffer);
-server.post('/skycam/tables/sources/buffer/:schema', skycam_sources_flush_buffer_to_db);
-server.del('/skycam/tables/sources/buffer/:schema', skycam_sources_delete_buffer);
+server.put('/skycam/tables/sources/buffer/:uuid/:vals', skycam_sources_add_source_to_buffer);
+server.post('/skycam/tables/sources/buffer/:schema/:uuid/', skycam_sources_flush_buffer_to_db);
+server.del('/skycam/tables/sources/buffer/:uuid/', skycam_sources_delete_buffer);
 server.get('/skycam/tables/sources/buffer', skycam_sources_get_buffer);
 
 server.post('/skycam/tables/sources/:schema/:vals', skycam_sources_insert);
