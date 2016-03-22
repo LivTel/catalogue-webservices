@@ -109,8 +109,9 @@ function scs(req, res, next) {
                             res.end(js2xmlparser("sources", result.rows, options));
                             break;
                         case 'json':
-                            console.log("outputting as json");
-                            res.send(result.rows);
+                            console.log("sending output as json");
+                            res.json(result.rows);
+                            console.log("finished sending output");
                             break;
                         case 'html':
                             console.log("outputting as html");
@@ -187,8 +188,9 @@ function scs(req, res, next) {
                             res.end(js2xmlparser("sources", result.rows, options));
                             break;
                         case 'json':
-                            console.log("outputting as json");
-                            res.send(result.rows);
+                            console.log("sending output as json");
+                            res.json(result.rows);
+                            console.log("finished sending output");
                             break;
                         case 'html':
                             console.log("outputting as html");
@@ -301,8 +303,9 @@ function scs(req, res, next) {
                         res.end(js2xmlparser("sources", out_json, options));
                         break;
                     case 'json':
-                        console.log("outputting as json");
-                        res.send(out_json);
+                        console.log("sending output as json");
+                        res.json(out_json);
+                        console.log("finished sending output");
                         break;
                     case 'html':
                         console.log("outputting as html");
