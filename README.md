@@ -3,12 +3,19 @@ catalogue-webservices
 
 # Overview
 
-Supported catalogues must be installed first. See "Catalogue Installation" section for 
-more details.
+`ws.js` implements a RESTful interface exposing common queries to the USNOB, APASS and 
+Skycam catalogues using standardised HTTP operations.
 
-In order to use the USNOB catalogue, the root path to the catalogue directory (containing the 
-usnob binary and catalogue binaries) must be set in config.json. This is  `/cat/` by default, 
-and has a structure like:
+# Getting Started
+
+The following is an example startup procedure. The recipe assumes that the catalogue 
+files exist already in `/cat/`. If not, you will need to get a copy from a backup and 
+copy it across. If this is the case, you will need to both build the USNOB query tool 
+binary and initialise the Skycam database. More information about these procedures 
+can be found in the corresponding subsections of the Catalogue Installation section of 
+this README.
+
+By default, the resulting catalogue root directory should have a structure like:
 
 >[eng@catalogue cat]$ ls  
 > apass  bin  src  usnob   skycam
@@ -17,26 +24,59 @@ where:
 
 * `bin` is the directory containing the query_usnob executable.
 * `src` is the directory containing the usnob1 C code (optional if you've already compiled)
-* `usnob` is the directory containing the USNOB binary files.
-* `apass` is the directory containing the APASS database.
-* `skycam` is the directory containing the SKYCAM database.
+* `usnob` is the directory (or symlink) containing the USNOB binary files.
+* `apass` is the directory (or symlink) containing the APASS database files.
+* `skycam` is the directory (or symlink) containing the Skycam database files. 
 
-Equivalently, to use the APASS and Skycam catalogues, the database parameters (db_\* and *_db_\*)
-must be set accordingly in config.json. These databases are not password protected.
+After the catalogue directory has been setup, you will need to clone this 
+repository. The procedure is then as follows:
+
+* Change Postgres lockfile permissions for eng:
+
+> `$ sudo chmod o+w /var/run/postgresql/`
+
+* Start serving Postgres databases on ports `apass:db_port` (default 5432 for APASS) and 
+`skycam:db_port` (default 5433 for Skycam) specified in `config.json`:
+
+> `$ /usr/pgsql-9.5/bin/postgres -D /cat/apass/ -p 5432`  
+> `$ /usr/pgsql-9.5/bin/postgres -D /cat/skycam/ -p 5433`
+
+* Start the webservice:
+
+> `$ node --max-old-space-size=8192 catalogue-webservices/ws.js`
+
+* Open up webservice port `ws_port` as specified in `config.json` (default 3000)
+
+* enable vnc (optional):
+
+> `$ vncserver`
+
+# Known Issues
+
+Depending on the return size of the query, it is possible that node can run out of 
+memory. The memory available can be adjusted by the --max-old-space-size flag passed 
+to node. The default is 512Mb, recommended (although somewhat arbitrary) is 8Gb.
 
 # Catalogues supported
 
-* APASS
 * USNOB
+
+To use the USNOB catalogue, the root path ("catalogue\_root\_path" in config.json) 
+to the catalogue root directory must be set in `config.json`. 
+
 * Skycam
+* APASS
+
+To use the APASS and Skycam catalogues, the database host, username, port and 
+name parameters (db_\*) must be set accordingly in `config.json`. These databases are not 
+currently password protected as this webservice should serve as the forward facing point 
+of entry such that these ports do not need to be excepted from the firewall.
 
 # Available Webservices
 
-
 ### Catalogue Queries
 
-
-#### 1. Simple Cone Search (APASS, USNOB and Skycam)
+#### Simple Cone Search (APASS, USNOB and Skycam)
 
 **HTTP Method**: GET
 
@@ -57,108 +97,52 @@ A list of targets satisfying the above criteria in either JSON, XML, HTML or CSV
 
 - Possible values of CATALOGUE include "usnob", "apass" and "skycam".
 - RA/DEC/SR are in degrees.
-- MAGNITUDE\_FILTER\_COLUMN can be any magnitude related column.
+- MAGNITUDE\_FILTER\_COLUMN can be any magnitude related column (see database for names).
 - ORDER\_BY\_COLUMN can be any output column (except usnobref, raerrasec, decerrasec in USNOB queries).
 - MAX\_RETURNED\_ROWS shouldn't be too large for a large search radius!
 - OUTPUT\_FORMAT can be JSON, XML, HTML or CSV.
 
 ***
 
-There are two ways to insert sources into the Skycam database. The first is non-buffered, adding a single source at a time (non-buffered). The second uses an internal buffer (buffered). For the latter, the sequence of HTTP requests is PUT then POST.
+#### Other
 
-#### 2. Insert Image (Skycam only)
+There are various webservice calls that allow manipulation of Skycam's images/catalogue/sources 
+tables. These calls are summarised below. Refer to `ws.js` for how to use them.
 
-**HTTP Method**: POST
+There are two ways to insert sources into the Skycam database. The first is non-buffered, adding 
+a single source at a time. The second uses an internal buffer to aggregate the source data and flush 
+them all to the database with a single INSERT request. For the latter, the sequence of HTTP requests is PUT then 
+POST. Both buffers can either be flushed independently or together as a single transaction. Transactions 
+should always be preferred to avoid orphaning data between consecutive INSERT calls.
 
-**Syntax**:
-
-/skycam/tables/images/[SCHEMA_NAME]/[VALUES]
-
-e.g. 
-
-`http://localhost:3000/skycam/tables/images/skycamz/{"MJD": "56453.9897685", "AZDMD": 131.3999, "ALTDMD": 66.3945, "DATE_OBS": "2013-06-10T23%3A45%3A16", "RA_MAX": 256.891, "UTSTART": "23%3A45%3A16", "RA_MIN": 255.443, "ALTITUDE": 66.3945, "RA_CENT": 256.16746413, "CCDATEMP": -40, "FILENAME": "z_e_20130610_210_1_1_1.fits", "CCDSTEMP": -40, "DEC_MAX": 13.4933, "AZIMUTH": 131.3999, "DEC_MIN": 12.082, "DEC_CENT": 12.788429216, "ROTSKYPA": -34.650148}`
-
-**Returns**
-
-A JSON object with populated `img_id` and `mjd` fields.
-
-**Notes**:
-
-- [VALUES] is a JSON object. Keys required are listed by calling the webservice with an empty ({}) [VALUES] object.
-
-#### 3. Insert Non-Buffered Source (Skycam only)
-
-**HTTP Method**: POST
-
-**Syntax**: 
-
-/skycam/tables/sources/[SCHEMA_NAME]/[VALUES]
-
-e.g. 
-
-`http://localhost:3000/skycam/tables/sources/skycamz/{"mjd": 56453.9897685, "isoareaWorld": 0.00004097222, "magAuto": -8.8641, "ellipticity": 0.291, "img_id": "1", "SEFlags": 0,   "fluxAuto": 3512.75, "thetaImage": -14.71, "fluxErrAuto": 38.48057, "ra": 256.7084284141811, "background": 29.62897, "y": 18.0246, "x": 818.6285, "FWHM": 0.004684697, "dec": 12.557316425224261, "elongation": 1.411, "magErrAuto": 0.0119, "skycamref" : 1}`
-
-**Notes**:
-
-- [VALUES] is a JSON object. Keys required are listed by calling the webservice with an empty ({}) [VALUES] object.
-
-#### 4. Add Source to Internal Buffer (Skycam only)
-
-**HTTP Method**: PUT
-
-**Syntax**: 
-
-/skycam/tables/sources/buffer/[SCHEMA_NAME]/[VALUES]
-
-e.g.
-
-`http://localhost:3000/skycam/tables/sources/buffer/skycamz/{"mjd": 56453.9897685, "isoareaWorld": 4.097222e-05, "magAuto": -8.8641, "ellipticity": 0.291, "img_id": "1", "SEFlags": 0.0, "fluxAuto": 3512.75, "thetaImage": -14.71, "fluxErrAuto": 38.48057, "ra": 256.7084284141811, "background": 29.62897, "y": 18.0246, "x": 818.6285, "FWHM": 0.004684697, "dec": 12.557316425224261, "elongation": 1.411, "magErrAuto": 0.0119, "skycamref" : 1}`
-
-**Notes**:
-
-- [VALUES] is a JSON object. Keys required are listed by calling the webservice with an empty ({}) [VALUES] object.
-
-#### 5. Flush Buffer to Database (Skycam only)
-
-**HTTP Method**: POST
-
-**Syntax**: 
-
-/skycam/tables/sources/buffer/[SCHEMA_NAME]
-
-e.g.
-
-`http://localhost:3000/skycam/tables/sources/buffer/skycamz`
-
-#### 6. Get Buffer (Skycam only)
-
-**HTTP Method**: GET
-
-**Syntax**: 
-
-/skycam/tables/sources/buffer
-
-e.g.
-
-`http://localhost:3000/skycam/tables/sources/buffer`
-
-#### 7. Delete Buffer (Skycam only)
-
-**HTTP Method**: DELETE
-
-**Syntax**: 
-
-/skycam/tables/sources/buffer/[SCHEMA_NAME]
-
-e.g.
-
-`http://localhost:3000/skycam/tables/sources/buffer/skycamz`
+| Request Method | Table             | Description                  | URL
+| -------------- | ----------------- | ---------------------------- | ------------------------------------------------ |
+| POST           | images            | insert image                 | /skycam/tables/images/:schema/                   |
+| DEL            | images            | delete by img_id             | /skycam/tables/images/:schema/:img_id            |
+| GET            | images            | get image by img_id          | /skycam/tables/images/:schema/img_id/:img_id     |
+| GET            | images            | get image by filename        | /skycam/tables/images/:schema/filename/:filename |
+| PUT		 | catalogue         | add source to buffer         | /skycam/tables/catalogue/buffer/:uuid/           |
+| POST           | catalogue         | flush buffer to table        | /skycam/tables/catalogue/buffer/:schema/:uuid/   |
+| DEL            | catalogue         | delete buffer                | /skycam/tables/catalogue/buffer/:uuid/           |
+| GET            | catalogue         | get buffer                   | /skycam/tables/catalogue/buffer                  |
+| GET            | catalogue         | get source by skycamref      | /skycam/tables/catalogue/:schema/:skycamref      |
+| GET            | catalogue         | insert source into table     | /skycam/tables/catalogue/:schema/                |
+| PUT		 | sources           | add source to buffer         | /skycam/tables/sources/buffer/:uuid/             |
+| POST           | sources           | flush buffer to table        | /skycam/tables/sources/buffer/:schema/:uuid/     |
+| DEL            | sources           | delete buffer                | /skycam/tables/sources/buffer/:uuid/             |
+| GET            | sources           | get buffer                   | /skycam/tables/sources/buffer                    |
+| POST           | sources           | insert source into table     | /skycam/tables/sources/:schema/                  |
+| DEL            | sources           | delete source by img_id      | /skycam/tables/sources/:schema/:img_id           |
+| GET            | sources           | get sources by img_id        | /skycam/tables/sources/:schema/:img_id           |
+| POST           | catalogue+sources | flush all buffers by uuid    | /skycam/transactions/flush/:schema/:img_id/:uuid |
 
 # Catalogue Installation
 
 ### APASS
 
-#### a recipe for ingesting an APASS database
+This section describes building the APASS catalogue from scratch. It is kept here for posterity.
+
+#### A recipe for ingesting an APASS database
 
 * install postgres:
 
@@ -262,8 +246,8 @@ contains information on the port used.
 ### USNOB
 
 The USNOB catalogue is currently stored as a series of directories. A binary 
-file, "query_usnob", must be compiled in order to use this catalogue for 
-source cross-matching. 
+file, "query_usnob", must be compiled from source in order to use this 
+catalogue for source cross-matching.
 
 The structure is like:
 
@@ -294,9 +278,10 @@ This can be done from the /cat/src/ folder with:
 
 ### Skycam
 
-It is preferable to copy over an existing database structure. The following does
-not discuss table layout; internal DDL functions (_init*) are used to initialise 
-the database structure. These DDL functions can be found in this distribution.
+It is highly advisable to copy over an existing database structure. The following 
+does not discuss table layout as internal DDL functions (_init*) are used to 
+initialise the database structure. These DDL functions can be found in the 
+`sql/` path of this distribution.
 
 #### creating the database
 
