@@ -111,12 +111,13 @@ tables. These calls are summarised below. Refer to `ws.js` for how to use them.
 
 There are two ways to insert sources into the Skycam database. The first is non-buffered, adding 
 a single source at a time. The second uses an internal buffer to aggregate the source data and flush 
-them all to the database with a single INSERT request. For the latter, the sequence of HTTP requests is PUT then 
+it all to the database with a single INSERT request. This reduces the overhead from having to sequentially 
+open and close the database connection. For the latter, the sequence of HTTP requests is PUT then 
 POST. Both buffers can either be flushed independently or together as a single transaction. Transactions 
 should always be preferred to avoid orphaning data between consecutive INSERT calls.
 
 | Request Method | Table             | Description                  | URL
-| -------------- | ----------------- | ---------------------------- | ------------------------------------------------ |
+| :------------- | :---------------- | :--------------------------- | :----------------------------------------------- |
 | POST           | images            | insert image                 | /skycam/tables/images/:schema/                   |
 | DEL            | images            | delete by img_id             | /skycam/tables/images/:schema/:img_id            |
 | GET            | images            | get image by img_id          | /skycam/tables/images/:schema/img_id/:img_id     |
@@ -140,7 +141,7 @@ should always be preferred to avoid orphaning data between consecutive INSERT ca
 
 ### APASS
 
-This section describes building the APASS catalogue from scratch. It is kept here for posterity.
+This section describes building/migrating the APASS catalogue from scratch. It is kept here for posterity.
 
 #### A recipe for ingesting an APASS database
 
