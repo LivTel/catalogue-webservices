@@ -14,18 +14,21 @@ var sys = require('sys')
 	, xml = require('xml')
         , json2html = require('node-json2html')
         , json2csv = require('json2csv')
+        , QueryStream = require('pg-query-stream')
+        , JSONStream = require('JSONStream')
 	; 
 
 function _pg_execute(client, qry, callback) {
-    client.query(qry, function(err, result) {
-        qry = qry.replace(/\s\s+/g, ' ');   // merge any instances of whitespace to single character
-        if (qry.length < 1024) {
-            console.log('executed query', "\"" + qry + "\"");
-        } else { 
-            console.log('executed query', "\"" + qry.substr(0,2048) + " ...\""); 
-        }
-        callback(err, result);
-    });
+    var qs = new QueryStream(qry);	    // create a stream for response
+    client.query(qs)
+    //qs.on('end', client.end());
+    qry = qry.replace(/\s\s+/g, ' ');   // merge any instances of whitespace to single character
+    if (qry.length < 1024) {
+        console.log('executed query', "\"" + qry + "\"");
+    } else { 
+        console.log('executed query', "\"" + qry.substr(0,2048) + " ...\""); 
+    }
+    callback(qs);
 }
 
 function _slice_usnob_str(s) {
@@ -90,8 +93,7 @@ function scs(req, res, next) {
                        vmag, bmag, gmag, rmag, imag, verr, berr, gerr, rerr, ierr, degrees(coords <-> spoint '(" + ra 
                        + "d," + dec + "d)')*3600 as distance FROM stars WHERE (coords @ scircle '<( " + ra + "d," + dec 
                        + "d)," + sr + "d>' = true) " + WHERECLAUSE_MAG + ORDERBYCLAUSE + LIMITCLAUSE;
-                _pg_execute(client, qry, function(err, result) {
-                    client.end();
+                _pg_execute(client, qry, function(result) {
                     if(err) {
                         res.send(400, err);
                         console.error(err);
@@ -106,17 +108,12 @@ function scs(req, res, next) {
 			    	sources: "src"
 			        }
 			    };
-                            res.end(js2xmlparser("sources", result.rows, options));
+                            res.end(js2xmlparser("sources", result, options));
                             break;
                         case 'json':
                             console.log("sending output as json");
-                            //res.header('Content-Type', 'application/json');
-                            //result.rows.forEach(function(entry) {
-			    //    res.write(JSON.stringify(entry));
-                            //});
-                            //res.end();
-                            res.json(result.rows);
-                            console.log("finished sending output");
+                            res.header('Content-Type', 'application/json');
+                            result.pipe(JSONStream.stringify()).pipe(res);
                             break;
                         case 'html':
                             console.log("outputting as html");
@@ -174,8 +171,7 @@ function scs(req, res, next) {
                        xmatch_apass_distasec, xmatch_usnob_distasec, xmatch_apass_ntimesswitched, xmatch_usnob_ntimesswitched, \
                        (pos <-> spoint '(" + ra + "d," + dec + "d)')*3600 as distance FROM " + cat + ".catalogue WHERE (pos @ scircle '<( " + ra + "d," + dec 
                        + "d)," + sr + "d>' = true) " + WHERECLAUSE_MAG + ORDERBYCLAUSE + LIMITCLAUSE;
-                _pg_execute(client, qry, function(err, result) {
-                    client.end();
+                _pg_execute(client, qry, function(result) {
                     if(err) {
                         res.send(400, err);
                         console.error(err);
@@ -194,13 +190,8 @@ function scs(req, res, next) {
                             break;
                         case 'json':
                             console.log("sending output as json");
-                            //res.header('Content-Type', 'application/json');
-                            //result.rows.forEach(function(entry) {
-			    //    res.write(JSON.stringify(entry));
-                            //});
-                            //res.end();
-                            res.json(result.rows);
-                            console.log("finished sending output");
+                            res.header('Content-Type', 'application/json');
+                            result.pipe(JSONStream.stringify()).pipe(res);
                             break;
                         case 'html':
                             console.log("outputting as html");
@@ -314,13 +305,7 @@ function scs(req, res, next) {
                         break;
                     case 'json':
                         console.log("sending output as json");
-                            //res.header('Content-Type', 'application/json');
-                            //result.rows.forEach(function(entry) {
-			    //    res.write(JSON.stringify(entry));
-                            //});
-                            //res.end();
-                            res.json(result.rows);
-                        console.log("finished sending output");
+                        res.json(out_json);
                         break;
                     case 'html':
                         console.log("outputting as html");
