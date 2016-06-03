@@ -110,6 +110,11 @@ function scs(req, res, next) {
                             break;
                         case 'json':
                             console.log("sending output as json");
+                            //res.header('Content-Type', 'application/json');
+                            //result.rows.forEach(function(entry) {
+			    //    res.write(JSON.stringify(entry));
+                            //});
+                            //res.end();
                             res.json(result.rows);
                             console.log("finished sending output");
                             break;
@@ -189,6 +194,11 @@ function scs(req, res, next) {
                             break;
                         case 'json':
                             console.log("sending output as json");
+                            //res.header('Content-Type', 'application/json');
+                            //result.rows.forEach(function(entry) {
+			    //    res.write(JSON.stringify(entry));
+                            //});
+                            //res.end();
                             res.json(result.rows);
                             console.log("finished sending output");
                             break;
@@ -304,7 +314,12 @@ function scs(req, res, next) {
                         break;
                     case 'json':
                         console.log("sending output as json");
-                        res.json(out_json);
+                            //res.header('Content-Type', 'application/json');
+                            //result.rows.forEach(function(entry) {
+			    //    res.write(JSON.stringify(entry));
+                            //});
+                            //res.end();
+                            res.json(result.rows);
                         console.log("finished sending output");
                         break;
                     case 'html':

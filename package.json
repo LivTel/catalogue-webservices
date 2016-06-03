@@ -29,6 +29,8 @@
   , "js2xmlparser" : "latest"
   , "node-json2html" : "latest"
   , "json2csv": "latest"
+  , "pg-query-stream": "latest"
+  , "JSONStream": "latest"
   }
 , "devDependencies": {
   }
