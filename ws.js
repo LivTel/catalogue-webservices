@@ -19,9 +19,21 @@ var sys = require('sys')
 	; 
 
 function _pg_execute(client, qry, callback) {
+    client.query(qry, function(err, result) {
+        qry = qry.replace(/\s\s+/g, ' ');   // merge any instances of whitespace to single character
+        if (qry.length < 1024) {
+            console.log('executed query', "\"" + qry + "\"");
+        } else { 
+            console.log('executed query', "\"" + qry.substr(0,2048) + " ...\""); 
+        }
+        callback(err, result);
+    });
+}
+
+function _pg_execute_stream(client, qry, callback) {
     var qs = new QueryStream(qry);	    // create a stream for response
     client.query(qs)
-    //qs.on('end', client.end());
+    qs.on('end', client.end);
     qry = qry.replace(/\s\s+/g, ' ');   // merge any instances of whitespace to single character
     if (qry.length < 1024) {
         console.log('executed query', "\"" + qry + "\"");
@@ -93,7 +105,7 @@ function scs(req, res, next) {
                        vmag, bmag, gmag, rmag, imag, verr, berr, gerr, rerr, ierr, degrees(coords <-> spoint '(" + ra 
                        + "d," + dec + "d)')*3600 as distance FROM stars WHERE (coords @ scircle '<( " + ra + "d," + dec 
                        + "d)," + sr + "d>' = true) " + WHERECLAUSE_MAG + ORDERBYCLAUSE + LIMITCLAUSE;
-                _pg_execute(client, qry, function(result) {
+                _pg_execute_stream(client, qry, function(result) {
                     if(err) {
                         res.send(400, err);
                         console.error(err);
@@ -171,7 +183,7 @@ function scs(req, res, next) {
                        xmatch_apass_distasec, xmatch_usnob_distasec, xmatch_apass_ntimesswitched, xmatch_usnob_ntimesswitched, \
                        (pos <-> spoint '(" + ra + "d," + dec + "d)')*3600 as distance FROM " + cat + ".catalogue WHERE (pos @ scircle '<( " + ra + "d," + dec 
                        + "d)," + sr + "d>' = true) " + WHERECLAUSE_MAG + ORDERBYCLAUSE + LIMITCLAUSE;
-                _pg_execute(client, qry, function(result) {
+                _pg_execute_stream(client, qry, function(result) {
                     if(err) {
                         res.send(400, err);
                         console.error(err);
