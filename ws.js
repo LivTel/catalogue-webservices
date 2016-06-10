@@ -18,6 +18,8 @@ var sys = require('sys')
         , JSONStream = require('JSONStream')
 	; 
 
+pg.defaults.poolSize = 50;
+
 function _pg_execute(client, qry, callback) {
     client.query(qry, function(err, result) {
         qry = qry.replace(/\s\s+/g, ' ');   // merge any instances of whitespace to single character
@@ -32,8 +34,7 @@ function _pg_execute(client, qry, callback) {
 
 function _pg_execute_stream(client, qry, callback) {
     var qs = new QueryStream(qry);	    // create a stream for response
-    client.query(qs)
-    qs.on('end', client.end);
+    client.query(qs);
     qry = qry.replace(/\s\s+/g, ' ');   // merge any instances of whitespace to single character
     if (qry.length < 1024) {
         console.log('executed query', "\"" + qry + "\"");
@@ -66,6 +67,16 @@ function _slice_usnob_str(s) {
   };
   return res;
 }
+
+function streamToString(stream, callback) {
+  const chunks = [];
+  stream.on('data', function(chunk) {
+    chunks.push(chunk);
+  });
+  stream.on('end', function() {
+    callback(chunks);
+  });
+}
    
 function scs(req, res, next) {
     console.log("received an scs request");
@@ -95,8 +106,9 @@ function scs(req, res, next) {
                 LIMITCLAUSE = ' LIMIT ' + nmax;
             }
             conString = "postgres://" + cfg.apass.db_user + "@" + cfg.apass.db_host + ":" + cfg.apass.db_port + "/" + cfg.apass.db_name;
-            pg.connect(conString, function(err, client) {
+            pg.connect(conString, function(err, client, done) {
                 if(err) {
+                    done();
                     res.send(400, err);
                     console.error(err);
                     return false;
@@ -106,51 +118,59 @@ function scs(req, res, next) {
                        + "d," + dec + "d)')*3600 as distance FROM stars WHERE (coords @ scircle '<( " + ra + "d," + dec 
                        + "d)," + sr + "d>' = true) " + WHERECLAUSE_MAG + ORDERBYCLAUSE + LIMITCLAUSE;
                 _pg_execute_stream(client, qry, function(result) {
-                    if(err) {
-                        res.send(400, err);
-                        console.error(err);
-                        return false;
-                    }
+                    result.on('error', done)					// bind error event to close connection and remove from pool
                     switch (format) {
                         case 'xml':
                             console.log("outputting as xml");
-                            res.header('Content-Type', 'text/xml');
-			    var options = {
-			        arrayMap: {
-			    	sources: "src"
-			        }
-			    };
-                            res.end(js2xmlparser("sources", result, options));
+                            streamToString(result, function(data) {
+                                done();
+                                res.header('Content-Type', 'text/xml');
+			        var options = {
+			            arrayMap: {
+			    	    sources: "src"
+			            }
+			        };   
+                                res.end(js2xmlparser("sources", data, options));
+                            });
                             break;
                         case 'json':
                             console.log("sending output as json");
+                            result.on('end', done)				// bind end event to close connection and remove from pool when data transferred
                             res.header('Content-Type', 'application/json');
                             result.pipe(JSONStream.stringify()).pipe(res);
                             break;
                         case 'html':
                             console.log("outputting as html");
-                            var transform = {'tag':'tr', 
+                            streamToString(result, function(data) {
+			        done();
+                                var transform = {'tag':'tr', 
                                              'html':'<td>${apassref}</td><td>${ra}</td><td>${dec}</td><td>${raerrasec}</td><td>${decerrasec}</td><td>${nobs}</td><td>${vmag}</td><td>${bmag}</td><td>${gmag}</td><td>${rmag}</td><td>${imag}</td><td>${verr}</td><td>${berr}</td><td>${gerr}</td><td>${rerr}</td><td>${ierr}</td><td>${distance}</td>'};
-                            html = "<table cellpadding=3><tr><td><b>apassref</b></td><td><b>ra</b></td><td><b>dec</b></td><td><b>raerrasec</b></td><td><b>decerrasec<b/></td><td><b>nobs<b/></td><td><b>vmag</b></td><td><b>bmag</b></td><td><b>gmag</b></td><td><b>rmag</b></td><td><b>imag</b></td><td><b>verr</b></td><td><b>berr</b></td><td><b>gerr</b></td><td><b>rerr</b></td><td><b>ierr</b></td><td><b>distance</b></td></tr>"
-                                 + json2html.transform(result.rows, transform) 
-                                 + "</table>";
-                            res.header('Content-Type', 'text/html');
-                            res.end(html);
+                                html = "<table cellpadding=3><tr><td><b>apassref</b></td><td><b>ra</b></td><td><b>dec</b></td><td><b>raerrasec</b></td><td><b>decerrasec<b/></td><td><b>nobs<b/></td><td><b>vmag</b></td><td><b>bmag</b></td><td><b>gmag</b></td><td><b>rmag</b></td><td><b>imag</b></td><td><b>verr</b></td><td><b>berr</b></td><td><b>gerr</b></td><td><b>rerr</b></td><td><b>ierr</b></td><td><b>distance</b></td></tr>"
+                                     + json2html.transform(data, transform) 
+                                     + "</table>";
+                                res.header('Content-Type', 'text/html');
+                                res.end(html);
+                            });
                             break;
                         case 'csv':
                             console.log("outputting as csv");
-                            fields = ['apassref', 'ra', 'dec', 'raerrasec', 'decerrasec', 'nobs', 'vmag', 'bmag', 'gmag', 'rmag', 'imag', 'verr', 'berr', 'gerr', 'rerr', 'ierr', 'distance'];               
-                            json2csv({ data: result.rows, fields: fields }, function(err, csv) {
-                                if (err) {
-                                    res.send(400, err);
-                                    console.error(err);
-                                    return false;
-                                }
-                                res.header('Content-Type', 'text/html');
-                                res.end(csv);
+                            streamToString(result, function(data) { 
+                                console.log(data.rows);
+                                done();   
+                                fields = ['apassref', 'ra', 'dec', 'raerrasec', 'decerrasec', 'nobs', 'vmag', 'bmag', 'gmag', 'rmag', 'imag', 'verr', 'berr', 'gerr', 'rerr', 'ierr', 'distance'];               
+                                json2csv({ data: data, fields: fields }, function(err, csv) {
+                                    if (err) {
+                                        res.send(400, err);
+                                        console.error(err);
+                                        return false;
+                                    }
+                                    res.header('Content-Type', 'text/html');
+                                    res.end(csv);
+                                });
                             });
                             break;
                        default:
+                            done();
                             err = {'message' : 'format not recognised'};
                             err['formats_expected'] = ['xml', 'json', 'html', 'csv'];
                             res.send(400, err);
@@ -172,63 +192,70 @@ function scs(req, res, next) {
             }
 
             conString = "postgres://" + cfg.skycam.db_user + "@" + cfg.skycam.db_host + ":" + cfg.skycam.db_port + "/" + cfg.skycam.db_name;
-            pg.connect(conString, function(err, client) {
+            pg.connect(conString, function(err, client, done) {
                 if(err) {
                     res.send(400, err);
                     console.error(err);
                     return false;
                 }
-                qry = "SELECT skycamref, xmatch_apassref, xmatch_usnobref, radeg as ra, decdeg as dec, raerrasec, decerrasec, nobs, \
+                qry = "SELECT skycamref, xmatch_apassref, xmatch_usnobref, firstobs_date, lastobs_date, radeg as ra, decdeg as dec, raerrasec, decerrasec, nobs, \
                        xmatch_apass_brcolour, xmatch_usnob_brcolour, xmatch_apass_rollingmeanmag, xmatch_apass_rollingstdevmag, xmatch_usnob_rollingmeanmag, xmatch_usnob_rollingstdevmag, \
                        xmatch_apass_distasec, xmatch_usnob_distasec, xmatch_apass_ntimesswitched, xmatch_usnob_ntimesswitched, \
                        (pos <-> spoint '(" + ra + "d," + dec + "d)')*3600 as distance FROM " + cat + ".catalogue WHERE (pos @ scircle '<( " + ra + "d," + dec 
                        + "d)," + sr + "d>' = true) " + WHERECLAUSE_MAG + ORDERBYCLAUSE + LIMITCLAUSE;
                 _pg_execute_stream(client, qry, function(result) {
-                    if(err) {
-                        res.send(400, err);
-                        console.error(err);
-                        return false;
-                    }
+                    result.on('error', done)					// bind error event to close connection and remove from pool
                     switch (format) {
                         case 'xml':
                             console.log("outputting as xml");
-                            res.header('Content-Type', 'text/xml');
-			    var options = {
-			        arrayMap: {
-			    	sources: "src"
-			        }
-			    };
-                            res.end(js2xmlparser("sources", result.rows, options));
+                            streamToString(result, function(data) {
+                                done();
+                                res.header('Content-Type', 'text/xml');
+			        var options = {
+			            arrayMap: {
+			    	    sources: "src"
+			            }
+			        };
+                                res.end(js2xmlparser("sources", data, options));
+                            });
                             break;
                         case 'json':
                             console.log("sending output as json");
+                            result.on('end', done)				// bind end event to close connection and remove from pool when data transferred
                             res.header('Content-Type', 'application/json');
                             result.pipe(JSONStream.stringify()).pipe(res);
                             break;
                         case 'html':
                             console.log("outputting as html");
-                            var transform = {'tag':'tr', 
-                                             'html':'<td>${skycamref}</td><td>${xmatch_apassref}</td><td>${xmatch_usnobref}</td><td>${ra}</td><td>${dec}</td><td>${raerrasec}</td><td>${decerrasec}</td><td>${nobs}</td><td>${xmatch_apass_brcolour}</td><td>${xmatch_usnob_brcolour}</td><td>${xmatch_apass_rollingmeanmag}</td><td>${xmatch_apass_rollingstdevmag}</td><td>${xmatch_usnob_rollingmeanmag}</td><td>${xmatch_usnob_rollingstdevmag}</td><td>${xmatch_apass_distasec}</td><td>${xmatch_usnob_distasec}</td><td>${xmatch_apass_ntimesswitched}</td><td>${xmatch_usnob_ntimesswitched}</td><td>${distance}</td>'};
-                            html = "<table cellpadding=3><tr><td><b>skycamref</b></td><td><b>xmatch_apassref</b></td><td><b>xmatch_usnobref</b></td><td><b>ra</b></td><td><b>dec</b></td><td><b>raerrasec</b></td><td><b>decerrasec<b/></td><td><b>nobs<b/></td><td><b>xmatch_apass_brcolour<b/></td><td><b>xmatch_usnob_brcolour<b/></td><td><b>xmatch_apass_rollingmeanmag</b></td><td><b>xmatch_apass_rollingstdevmag</b></td><td><b>xmatch_usnob_rollingmeanmag</b></td><td><b>xmatch_usnob_rollingstdevmag</b></td><td><b>xmatch_apass_distasec</b></td><td><b>xmatch_usnob_distasec</b></td><td><b>xmatch_apass_ntimesswitched</b></td><td><b>xmatch_usnob_ntimesswitched</b></td><td><b>distance</b></td></tr>"
-                                 + json2html.transform(result.rows, transform) 
-                                 + "</table>";
-                            res.header('Content-Type', 'text/html');
-                            res.end(html);
+                            streamToString(result, function(data) {
+                                done();    
+                                var transform = {'tag':'tr', 
+                                                 'html':'<td>${skycamref}</td><td>${xmatch_apassref}</td><td>${xmatch_usnobref}</td><td>${firstobs_date}</td><td>${lastobs_date}</td><td>${ra}</td><td>${dec}</td><td>${raerrasec}</td><td>${decerrasec}</td><td>${nobs}</td><td>${xmatch_apass_brcolour}</td><td>${xmatch_usnob_brcolour}</td><td>${xmatch_apass_rollingmeanmag}</td><td>${xmatch_apass_rollingstdevmag}</td><td>${xmatch_usnob_rollingmeanmag}</td><td>${xmatch_usnob_rollingstdevmag}</td><td>${xmatch_apass_distasec}</td><td>${xmatch_usnob_distasec}</td><td>${xmatch_apass_ntimesswitched}</td><td>${xmatch_usnob_ntimesswitched}</td><td>${distance}</td>'};
+                                html = "<table cellpadding=3><tr><td><b>skycamref</b></td><td><b>xmatch_apassref</b></td><td><b>xmatch_usnobref</b></td><td><b>firstobs_date</b></td><td><b>lastobs_datess</b></td><td><b>ra</b></td><td><b>dec</b></td><td><b>raerrasec</b></td><td><b>decerrasec<b/></td><td><b>nobs<b/></td><td><b>xmatch_apass_brcolour<b/></td><td><b>xmatch_usnob_brcolour<b/></td><td><b>xmatch_apass_rollingmeanmag</b></td><td><b>xmatch_apass_rollingstdevmag</b></td><td><b>xmatch_usnob_rollingmeanmag</b></td><td><b>xmatch_usnob_rollingstdevmag</b></td><td><b>xmatch_apass_distasec</b></td><td><b>xmatch_usnob_distasec</b></td><td><b>xmatch_apass_ntimesswitched</b></td><td><b>xmatch_usnob_ntimesswitched</b></td><td><b>distance</b></td></tr>"
+                                     + json2html.transform(data, transform) 
+                                     + "</table>";
+                                res.header('Content-Type', 'text/html');
+                                res.end(html);
+                            });
                             break;
                         case 'csv':
                             console.log("outputting as csv");
-                            fields = ['apassref', 'xmatch_apassref', 'xmatch_usnobref', 'ra', 'dec', 'raerrasec', 'decerrasec', 'nobs', 'xmatch_apass_brcolour', 'xmatch_usnob_brcolour', 'xmatch_apass_rollingmeanmag', 'xmatch_apass_rollingstdevmag', 'xmatch_usnob_rollingmeanmag', 'xmatch_usnob_rollingstdevmag', 'xmatch_apass_distasec', 'xmatch_usnob_distasec', 'xmatch_apass_ntimesswitched', 'xmatch_usnob_ntimesswitched', 'distance'];               
-                            json2csv({ data: result.rows, fields: fields }, function(err, csv) {
-                                if (err) {
-                                    res.send(400, err);
-                                    console.error(err);
-                                    return false;
-                                }
-                                res.header('Content-Type', 'text/html');
-                                res.end(csv);
+                            streamToString(result, function(data) {
+                                done();    
+                                fields = ['apassref', 'xmatch_apassref', 'xmatch_usnobref', 'firstobs_date', 'lastobs_date', 'ra', 'dec', 'raerrasec', 'decerrasec', 'nobs', 'xmatch_apass_brcolour', 'xmatch_usnob_brcolour', 'xmatch_apass_rollingmeanmag', 'xmatch_apass_rollingstdevmag', 'xmatch_usnob_rollingmeanmag', 'xmatch_usnob_rollingstdevmag', 'xmatch_apass_distasec', 'xmatch_usnob_distasec', 'xmatch_apass_ntimesswitched', 'xmatch_usnob_ntimesswitched', 'distance'];               
+                                json2csv({ data: data, fields: fields }, function(err, csv) {
+                                    if (err) {
+                                        res.send(400, err);
+                                        console.error(err);
+                                        return false;
+                                    }
+                                    res.header('Content-Type', 'text/html');
+                                    res.end(csv);
+                                });
                             });
                             break;
                        default:
+                            done();
                             err = {'message' : 'format not recognised'};
                             err['formats_expected'] = ['xml', 'json', 'html', 'csv'];
                             res.send(400, err);
@@ -457,7 +484,7 @@ function skycam_catalogue_flush_buffer_to_db(req, res, next) {
     valuesClause = valuesClause.substr(0, valuesClause.length-1)    // discard trailing comma
     
     conString = "postgres://" + cfg.skycam.db_user + "@" + cfg.skycam.db_host + ":" + cfg.skycam.db_port + "/" + cfg.skycam.db_name;
-    pg.connect(conString, function(err, client) {
+    pg.connect(conString, function(err, client, done) {
         if(err) {
             res.send(400, err);
             console.error(err);
@@ -468,7 +495,7 @@ function skycam_catalogue_flush_buffer_to_db(req, res, next) {
             xmatch_usnob_rollingmeanmag, xmatch_usnob_rollingstdevmag, xmatch_apass_ntimesswitched, xmatch_usnob_ntimesswitched, pos) VALUES " + valuesClause + " ON CONFLICT \
             (skycamref) DO UPDATE SET xmatch_apassref=excluded.xmatch_apassref, xmatch_apass_distasec=excluded.xmatch_apass_distasec, xmatch_usnobref=excluded.xmatch_usnobref, xmatch_usnob_distasec=excluded.xmatch_usnob_distasec, lastobs_date=excluded.lastobs_date, radeg=excluded.radeg, decdeg=excluded.decdeg, raerrasec=excluded.raerrasec, decerrasec=excluded.decerrasec, nobs=excluded.nobs, xmatch_apass_brcolour=excluded.xmatch_apass_brcolour, xmatch_usnob_brcolour=excluded.xmatch_usnob_brcolour, xmatch_apass_rollingmeanmag=excluded.xmatch_apass_rollingmeanmag, xmatch_apass_rollingstdevmag=excluded.xmatch_apass_rollingstdevmag, xmatch_usnob_rollingmeanmag=excluded.xmatch_usnob_rollingmeanmag, xmatch_usnob_rollingstdevmag=excluded.xmatch_usnob_rollingstdevmag, xmatch_apass_ntimesswitched=excluded.xmatch_apass_ntimesswitched, xmatch_usnob_ntimesswitched=excluded.xmatch_usnob_ntimesswitched, pos=spoint(excluded.radeg*(PI()/180), excluded.decdeg*(PI()/180))";
             _pg_execute(client, qry, function(err, result) {
-                client.end();
+                done();
                 if (err) {
                     res.send(400, err);
                     console.error(err);
@@ -495,7 +522,7 @@ function skycam_catalogue_get_by_skycamref(req, res, next) {
     skycamref   = req.params.skycamref;
     
     conString = "postgres://" + cfg.skycam.db_user + "@" + cfg.skycam.db_host + ":" + cfg.skycam.db_port + "/" + cfg.skycam.db_name;
-    pg.connect(conString, function(err, client) {
+    pg.connect(conString, function(err, client, done) {
         if(err) {
             res.send(400, err);
             console.error(err);
@@ -503,7 +530,7 @@ function skycam_catalogue_get_by_skycamref(req, res, next) {
         } else {
             qry = "SELECT * FROM " + schema_name + ".catalogue WHERE skycamref = " + skycamref;
             _pg_execute(client, qry, function(err, result) {
-                client.end(); 
+                done(); 
                 if (err) {
                     res.send(400, err);
                     console.error(err);
@@ -566,7 +593,7 @@ function skycam_catalogue_insert(req, res, next) {
     });
     
     conString = "postgres://" + cfg.skycam.db_user + "@" + cfg.skycam.db_host + ":" + cfg.skycam.db_port + "/" + cfg.skycam.db_name;
-    pg.connect(conString, function(err, client) {
+    pg.connect(conString, function(err, client, done) {
         if(err) {
             res.send(400, err);
             console.error(err);
@@ -576,7 +603,7 @@ function skycam_catalogue_insert(req, res, next) {
             firstobs_date, lastobs_date, radeg, decdeg, raerrasec, decerrasec, nobs, xmatch_apass_brcolour, xmatch_usnob_brcolour, xmatch_apass_rollingmeanmag, xmatch_apass_rollingstdevmag, \ xmatch_usnob_rollingmeanmag, xmatch_usnob_rollingstdevmag, xmatch_apass_ntimesswitched, xmatch_usnob_ntimesswitched, pos) VALUES " + "('" + vals.skycamref + "', " + 
             vals.xmatch_apassref + ", " + vals.xmatch_apass_distasec + ", '" + vals.xmatch_usnobref + "', " + vals.xmatch_usnob_distasec + ", '" + vals.firstobs_date + "', '" + vals.lastobs_date + "', " + vals.radeg + ", " + vals.decdeg + ", " + vals.raerrasec + ", " + vals.decerrasec + ", " + vals.nobs + ", " + vals.xmatch_apass_brcolour + ", " + vals.xmatch_usnob_brcolour + ", " + vals.xmatch_apass_rollingmeanmag + ", " + vals.xmatch_apass_rollingstdevmag + ", " + vals.xmatch_usnob_rollingmeanmag + ", " + vals.xmatch_usnob_rollingstdevmag + ", " + vals.xmatch_apass_ntimesswitched + ", " + vals.xmatch_usnob_ntimesswitched + ", spoint(" + vals.radeg*(Math.PI/180) + ", " + vals.decdeg*(Math.PI/180) + "))";
             _pg_execute(client, qry, function(err) {
-                client.end();
+                done(); 
                 if (err) {
                     res.send(400, err);
                     console.error(err);
@@ -600,7 +627,7 @@ function skycam_images_delete_by_img_id(req, res, next) {
     img_id      = req.params.img_id;
     
     conString = "postgres://" + cfg.skycam.db_user + "@" + cfg.skycam.db_host + ":" + cfg.skycam.db_port + "/" + cfg.skycam.db_name;
-    pg.connect(conString, function(err, client) {
+    pg.connect(conString, function(err, client, done) {
         if(err) {
             res.send(400, err);
             console.error(err);
@@ -608,7 +635,7 @@ function skycam_images_delete_by_img_id(req, res, next) {
         } else {
             qry = "DELETE FROM " + schema_name + ".images WHERE img_id = " + img_id;
             _pg_execute(client, qry, function(err, result) {
-                client.end(); 
+                done();
                 if (err) {
                     res.send(400, err);
                     console.error(err);
@@ -628,7 +655,7 @@ function skycam_images_get_by_filename(req, res, next) {
     filename    = req.params.filename;
     
     conString = "postgres://" + cfg.skycam.db_user + "@" + cfg.skycam.db_host + ":" + cfg.skycam.db_port + "/" + cfg.skycam.db_name;
-    pg.connect(conString, function(err, client) {
+    pg.connect(conString, function(err, client, done) {
         if(err) {
             res.send(400, err);
             console.error(err);
@@ -636,7 +663,7 @@ function skycam_images_get_by_filename(req, res, next) {
         } else {
             qry = "SELECT count(*) FROM " + schema_name + ".images WHERE filename = '" + filename + "'";
             _pg_execute(client, qry, function(err, result) {
-                client.end(); 
+                done(); 
                 if (err) {
                     res.send(400, err);
                     console.error(err);
@@ -656,7 +683,7 @@ function skycam_images_get_by_img_id(req, res, next) {
     img_id      = req.params.img_id;
     
     conString = "postgres://" + cfg.skycam.db_user + "@" + cfg.skycam.db_host + ":" + cfg.skycam.db_port + "/" + cfg.skycam.db_name;
-    pg.connect(conString, function(err, client) {
+    pg.connect(conString, function(err, client, done) {
         if(err) {
             res.send(400, err);
             console.error(err);
@@ -664,7 +691,7 @@ function skycam_images_get_by_img_id(req, res, next) {
         } else {
             qry = "SELECT * FROM " + schema_name + ".images WHERE img_id = " + img_id;
             _pg_execute(client, qry, function(err, result) {
-                client.end(); 
+                done();
                 if (err) {
                     res.send(400, err);
                     console.error(err);
@@ -735,7 +762,7 @@ function skycam_images_insert(req, res, next) {
     });
     
     conString = "postgres://" + cfg.skycam.db_user + "@" + cfg.skycam.db_host + ":" + cfg.skycam.db_port + "/" + cfg.skycam.db_name;
-    pg.connect(conString, function(err, client) {
+    pg.connect(conString, function(err, client, done) {
         if(err) {
             res.send(400, err);
             console.error(err);
@@ -754,7 +781,7 @@ function skycam_images_insert(req, res, next) {
                 + ", " + vals.FRAME_ZP_USNOB + ", " + vals.FRAME_ZP_STDEV_USNOB 
                 + ", '" + vals.FILENAME + "')";
             _pg_execute(client, qry, function(err, result) {
-                client.end(); 
+                done();
                 if (err) {
                     res.send(400, err);
                     console.error(err);
@@ -846,7 +873,7 @@ function skycam_sources_delete_by_img_id(req, res, next) {
     img_id      = req.params.img_id;
     
     conString = "postgres://" + cfg.skycam.db_user + "@" + cfg.skycam.db_host + ":" + cfg.skycam.db_port + "/" + cfg.skycam.db_name;
-    pg.connect(conString, function(err, client) {
+    pg.connect(conString, function(err, client, done) {
         if(err) {
             res.send(400, err);
             console.error(err);
@@ -854,7 +881,7 @@ function skycam_sources_delete_by_img_id(req, res, next) {
         } else {
             qry = "DELETE FROM " + schema_name + ".sources WHERE img_id = " + img_id;
             _pg_execute(client, qry, function(err, result) {
-                client.end(); 
+                done(); 
                 if (err) {
                     res.send(400, err);
                     console.error(err);
@@ -893,7 +920,7 @@ function skycam_sources_flush_buffer_to_db(req, res, next) {
     valuesClause = valuesClause.substr(0, valuesClause.length-1)    // discard trailing comma
     
     conString = "postgres://" + cfg.skycam.db_user + "@" + cfg.skycam.db_host + ":" + cfg.skycam.db_port + "/" + cfg.skycam.db_name;
-    pg.connect(conString, function(err, client) {
+    pg.connect(conString, function(err, client, done) {
         if(err) {
             res.send(400, err);
             console.error(err);
@@ -903,7 +930,7 @@ function skycam_sources_flush_buffer_to_db(req, res, next) {
             inst_mag, inst_mag_err, background, isoarea_world, seflags, fwhm, elongation, ellipticity,\
             theta_image, pos) VALUES " + valuesClause;
             _pg_execute(client, qry, function(err) {
-                client.end();
+                done(); 
                 if (err) {
                     res.send(400, err);
                     console.error(err);
@@ -930,7 +957,7 @@ function skycam_sources_get_by_img_id(req, res, next) {
     img_id      = req.params.img_id;
     
     conString = "postgres://" + cfg.skycam.db_user + "@" + cfg.skycam.db_host + ":" + cfg.skycam.db_port + "/" + cfg.skycam.db_name;
-    pg.connect(conString, function(err, client) {
+    pg.connect(conString, function(err, client, done) {
         if(err) {
             res.send(400, err);
             console.error(err);
@@ -938,7 +965,7 @@ function skycam_sources_get_by_img_id(req, res, next) {
         } else {
             qry = "SELECT * FROM " + schema_name + ".sources WHERE img_id = " + img_id;
             _pg_execute(client, qry, function(err, result) {
-                client.end(); 
+                done(); 
                 if (err) {
                     res.send(400, err);
                     console.error(err);
@@ -999,7 +1026,7 @@ function skycam_sources_insert(req, res, next) {
     });
     
     conString = "postgres://" + cfg.skycam.db_user + "@" + cfg.skycam.db_host + ":" + cfg.skycam.db_port + "/" + cfg.skycam.db_name;
-    pg.connect(conString, function(err, client) {
+    pg.connect(conString, function(err, client, done) {
         if(err) {
             res.send(400, err);
             console.error(err);
@@ -1014,7 +1041,7 @@ function skycam_sources_insert(req, res, next) {
             ", " + vals.ellipticity + ", " + vals.thetaImage + ", spoint(" + vals.ra*(Math.PI/180) + 
             ", " + vals.dec*(Math.PI/180) + "))";
             _pg_execute(client, qry, function(err) {
-                client.end();
+                done(); 
                 if (err) {
                     res.send(400, err);
                     console.error(err);
@@ -1074,7 +1101,7 @@ function skycam_flush_buffers_by_uuid_to_db(req, res, next) {
     valuesClauseSources = valuesClauseSources.substr(0, valuesClauseSources.length-1)    // discard trailing comma
     
     conString = "postgres://" + cfg.skycam.db_user + "@" + cfg.skycam.db_host + ":" + cfg.skycam.db_port + "/" + cfg.skycam.db_name;
-    pg.connect(conString, function(err, client) {
+    pg.connect(conString, function(err, client, done) {
         if(err) {
             res.send(400, err);
             console.error(err);
@@ -1083,15 +1110,15 @@ function skycam_flush_buffers_by_uuid_to_db(req, res, next) {
             qryCatalogue = "INSERT INTO " + schema + ".catalogue(skycamref, xmatch_apassref, xmatch_apass_distasec, xmatch_usnobref, xmatch_usnob_distasec, \
             firstobs_date, lastobs_date, radeg, decdeg, raerrasec, decerrasec, nobs, xmatch_apass_brcolour, xmatch_usnob_brcolour, xmatch_apass_rollingmeanmag, xmatch_apass_rollingstdevmag, \
             xmatch_usnob_rollingmeanmag, xmatch_usnob_rollingstdevmag, xmatch_apass_ntimesswitched, xmatch_usnob_ntimesswitched, pos) VALUES " + valuesClauseCatalogue + " ON CONFLICT \
-            (skycamref) DO UPDATE SET xmatch_apassref=excluded.xmatch_apassref, xmatch_apass_distasec=excluded.xmatch_apass_distasec, xmatch_usnobref=excluded.xmatch_usnobref, xmatch_usnob_distasec=excluded.xmatch_usnob_distasec, lastobs_date=excluded.lastobs_date, radeg=excluded.radeg, decdeg=excluded.decdeg, raerrasec=excluded.raerrasec, decerrasec=excluded.decerrasec, nobs=excluded.nobs, xmatch_apass_brcolour=excluded.xmatch_apass_brcolour, xmatch_usnob_brcolour=excluded.xmatch_usnob_brcolour, xmatch_apass_rollingmeanmag=excluded.xmatch_apass_rollingmeanmag, xmatch_apass_rollingstdevmag=excluded.xmatch_apass_rollingstdevmag, xmatch_usnob_rollingmeanmag=excluded.xmatch_usnob_rollingmeanmag, xmatch_usnob_rollingstdevmag=excluded.xmatch_usnob_rollingstdevmag, xmatch_apass_ntimesswitched=excluded.xmatch_apass_ntimesswitched, xmatch_usnob_ntimesswitched=excluded.xmatch_usnob_ntimesswitched, pos=spoint(excluded.radeg*(PI()/180), excluded.decdeg*(PI()/180));";  
+            (skycamref) DO UPDATE SET xmatch_apassref=excluded.xmatch_apassref, xmatch_apass_distasec=excluded.xmatch_apass_distasec, xmatch_usnobref=excluded.xmatch_usnobref, xmatch_usnob_distasec=excluded.xmatch_usnob_distasec, firstobs_date=excluded.firstobs_date, lastobs_date=excluded.lastobs_date, radeg=excluded.radeg, decdeg=excluded.decdeg, raerrasec=excluded.raerrasec, decerrasec=excluded.decerrasec, nobs=excluded.nobs, xmatch_apass_brcolour=excluded.xmatch_apass_brcolour, xmatch_usnob_brcolour=excluded.xmatch_usnob_brcolour, xmatch_apass_rollingmeanmag=excluded.xmatch_apass_rollingmeanmag, xmatch_apass_rollingstdevmag=excluded.xmatch_apass_rollingstdevmag, xmatch_usnob_rollingmeanmag=excluded.xmatch_usnob_rollingmeanmag, xmatch_usnob_rollingstdevmag=excluded.xmatch_usnob_rollingstdevmag, xmatch_apass_ntimesswitched=excluded.xmatch_apass_ntimesswitched, xmatch_usnob_ntimesswitched=excluded.xmatch_usnob_ntimesswitched, pos=spoint(excluded.radeg*(PI()/180), excluded.decdeg*(PI()/180));";  
             qrySources = "INSERT INTO " + schema + ".sources(img_id, skycamref, mjd, radeg, decdeg, x_pix, y_pix, flux, flux_err,\
             inst_mag, inst_mag_err, background, isoarea_world, seflags, fwhm, elongation, ellipticity,\
             theta_image, pos) VALUES " + valuesClauseSources + ";";
             qryUpdateImages = "UPDATE " + schema + ".images SET has_processed_successfully = true WHERE img_id = '" + img_id + "';";
             
             qry = "BEGIN; " + qryCatalogue + qrySources + qryUpdateImages + "COMMIT;";
-            _pg_execute(client, qry, function(err, result) {
-                client.end();
+            _pg_execute(client, qry, function(err, result) { 
+                done(); 
                 if (err) {
                     res.send(400, err);
                     console.error(err);
@@ -1109,8 +1136,23 @@ function skycam_flush_buffers_by_uuid_to_db(req, res, next) {
     });  
 }
 
+// **********
+// * server *
+// **********
+
+function reset(req, res, next) {
+    console.log("received a server reset request");
+    server.close()
+    server.listen(cfg['ws_port'], function() {
+	console.log("(ws.js) server running on port " + cfg['ws_port']);
+    });
+    res.send(200);
+}
+
 var server = restify.createServer();
 server.use(restify.bodyParser({}));
+
+server.put('/srv/reset', reset);
 
 server.get('/scs/:cat/:ra/:dec/:sr/:band/:llim/:ulim/:order/:nmax/:format', scs);
 
