@@ -725,14 +725,7 @@ function skycam_images_insert(req, res, next) {
             'RA_MIN', 
             'RA_MAX', 
             'DEC_MIN', 
-            'DEC_MAX', 
-            'CCDSTEMP', 
-            'CCDATEMP', 
-            'AZDMD', 
-            'AZIMUTH', 
-            'ALTDMD', 
-            'ALTITUDE', 
-            'ROTSKYPA'
+            'DEC_MAX'
     ];
     keys_missing = [];
     keys.forEach(function(entry) {
@@ -753,7 +746,14 @@ function skycam_images_insert(req, res, next) {
     keys_opt = ['FRAME_ZP_APASS',
                 'FRAME_ZP_STDEV_APASS',
                 'FRAME_ZP_USNOB',
-                'FRAME_ZP_STDEV_USNOB'
+                'FRAME_ZP_STDEV_USNOB',
+                'CCDSTEMP', 
+                'CCDATEMP', 
+                'AZDMD', 
+                'AZIMUTH', 
+                'ALTDMD', 
+                'ALTITUDE', 
+                'ROTSKYPA'
     ];  
     keys_opt.forEach(function(entry) {
         if (!(entry in vals)) {
