@@ -35,8 +35,12 @@ CREATE TABLE skycamt.images(
 	filename char(35) NOT NULL,
 	frame_zp_APASS real,
 	frame_zp_stdev_APASS real,
+        frame_zp_m_APASS real,
+        frame_zp_c_APASS real,
 	frame_zp_USNOB real,
 	frame_zp_stdev_USNOB real,
+        frame_zp_m_USNOB real,
+        frame_zp_c_USNOB real,
 	has_processed_successfully boolean default false
 );
 
@@ -95,6 +99,7 @@ CREATE INDEX idx_xmatch_catalogue_pos ON skycamt.catalogue USING GIST(pos);
 CREATE INDEX idx_xmatch_catalogue_apassref ON skycamt.catalogue(xmatch_apassref);
 
 CREATE INDEX idx_sources_mjd ON skycamt.sources(mjd);
+CREATE INDEX idx_sources_skycamref ON skycamt.sources(skycamref)
 CREATE INDEX idx_sources_inst_mag ON skycamt.sources(inst_mag);
 CREATE INDEX idx_sources_pos ON skycamt.sources USING GIST(pos);
 

@@ -77,6 +77,106 @@ function streamToString(stream, callback) {
     callback(chunks);
   });
 }
+
+function ss(req, res, next) {
+    console.log("received an ss request");
+    cat		= req.params.cat.toLowerCase(), 
+    skycamref 	= req.params.skycamref,
+    order	= req.params.order,
+    nmax	= req.params.nmax,
+    format      = req.params.format
+
+    switch (cat) {
+	case 'skycamt':  
+        case 'skycamz':
+            console.log("using " + cat + " catalogue");     
+            
+            var ORDERBYCLAUSE   = ' ORDER BY ' + order;
+            var LIMITCLAUSE = '';
+            if (nmax > 0) {
+                LIMITCLAUSE = ' LIMIT ' + nmax;
+            }
+
+            conString = "postgres://" + cfg.skycam.db_user + "@" + cfg.skycam.db_host + ":" + cfg.skycam.db_port + "/" + cfg.skycam.db_name;
+            pg.connect(conString, function(err, client, done) {
+                if(err) {
+                    res.send(400, err);
+                    console.error(err);
+                    return false;
+                }
+                qry = "SELECT s.src_id, s.img_id, s.mjd, s.inst_mag, s.inst_mag_err, i.frame_zp_apass FROM " + cat + ".sources s LEFT JOIN " + cat + ".images i ON s.img_id = i.img_id WHERE skycamref = '" + skycamref + "'" + ORDERBYCLAUSE + LIMITCLAUSE;
+                _pg_execute_stream(client, qry, function(result) {
+                    result.on('error', done)					// bind error event to close connection and remove from pool
+                    switch (format) {
+                        case 'xml':
+                            console.log("outputting as xml");
+                            streamToString(result, function(data) {
+                                done();
+                                res.header('Content-Type', 'text/xml');
+			        var options = {
+			            arrayMap: {
+			    	    sources: "src"
+			            }
+			        };
+				console.log("end");
+                                res.end(js2xmlparser("sources", data, options));
+                            });
+                            break;
+                        case 'json':
+                            console.log("sending output as json");
+                            result.on('end', done)				// bind end event to close connection and remove from pool when data transferred
+                            res.header('Content-Type', 'application/json');
+                            result.pipe(JSONStream.stringify()).pipe(res);
+                            break;
+                        case 'html':
+                            console.log("outputting as html");
+                            streamToString(result, function(data) {
+                                done();    
+                                var transform = {'tag':'tr', 
+                                                 'html':'<td>${src_id}</td><td>${img_id}<td>${mjd}</td><td>${inst_mag}</td><td>${inst_mag_err}</td><td>${frame_zp_apass}</td>'};
+                                html = "<table cellpadding=3><tr><td><b>src_id</b></td><td><b>img_id</b></td><td><b>mjd</b></td><td><b>inst_mag</b></td><td><b>inst_mag_err</b></td><td><b>frame_zp_apass</b></td></tr>"
+                                     + json2html.transform(data, transform) 
+                                     + "</table>";
+                                res.header('Content-Type', 'text/html');
+                                res.end(html);
+                            });
+                            break;
+                        case 'csv':
+                            console.log("outputting as csv");
+                            streamToString(result, function(data) {
+                                done();    
+                                fields = ['src_id', 'img_id', 'mjd', 'inst_mag', 'inst_mag_err', 'frame_zp_apass'];               
+                                json2csv({ data: data, fields: fields }, function(err, csv) {
+                                    if (err) {
+                                        res.send(400, err);
+                                        console.error(err);
+                                        return false;
+                                    }
+                                    res.header('Content-Type', 'text/html');
+                                    res.end(csv);
+                                });
+                            });
+                            break;
+                       default:
+                            done();
+                            err = {'message' : 'format not recognised'};
+                            err['formats_expected'] = ['xml', 'json', 'html', 'csv'];
+                            res.send(400, err);
+                            console.error(err);
+                            return false;
+                    }
+                });
+            });
+            break;  
+        default:
+            err = {'message' : 'catalogue not recognised'};
+            err['catalogues_expected'] = ['skycamz', 'skycamt'];
+            res.send(400, err);
+            console.error(err);
+            return false;
+     }
+     return;
+}
    
 function scs(req, res, next) {
     console.log("received an scs request");
@@ -1155,6 +1255,7 @@ server.use(restify.bodyParser({}));
 server.put('/srv/reset', reset);
 
 server.get('/scs/:cat/:ra/:dec/:sr/:band/:llim/:ulim/:order/:nmax/:format', scs);
+server.get('/ss/:cat/:skycamref/:order/:nmax/:format', ss);
 
 server.post('/skycam/tables/images/:schema/', skycam_images_insert);
 server.del('/skycam/tables/images/:schema/:img_id', skycam_images_delete_by_img_id);
