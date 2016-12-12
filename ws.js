@@ -845,8 +845,12 @@ function skycam_images_insert(req, res, next) {
     // now deal also with optional keys
     keys_opt = ['FRAME_ZP_APASS',
                 'FRAME_ZP_STDEV_APASS',
+		'FRAME_ZP_M_APASS',
+		'FRAME_ZP_C_APASS',
                 'FRAME_ZP_USNOB',
                 'FRAME_ZP_STDEV_USNOB',
+		'FRAME_ZP_M_USNOB',
+		'FRAME_ZP_C_USNOB',
                 'CCDSTEMP', 
                 'CCDATEMP', 
                 'AZDMD', 
@@ -871,15 +875,20 @@ function skycam_images_insert(req, res, next) {
             qry = "INSERT INTO " + schema_name + ".images( img_id, \
                 img_date, img_rundate, mjd, utstart, ra_cent, dec_cent, ra_min, ra_max, \
                 dec_min, dec_max, ccdstemp, ccdatemp, azdmd, azimuth, altdmd, altitude, \
-                rotskypa, frame_zp_apass, frame_zp_stdev_apass, frame_zp_usnob, frame_zp_stdev_usnob, \
-                filename) VALUES ('" + vals.IMG_ID + "', '" + decodeURIComponent(vals.DATE_OBS) + "', NOW(), " + vals.MJD + ", '" 
+                rotskypa, frame_zp_apass, frame_zp_stdev_apass, frame_zp_m_apass, frame_zp_c_apass, frame_zp_usnob, frame_zp_stdev_usnob, \
+                frame_zp_m_usnob, frame_zp_c_usnob, filename) VALUES ('" + vals.IMG_ID + "', '" + decodeURIComponent(vals.DATE_OBS) + "', NOW(), " + vals.MJD + ", '" 
                 + decodeURIComponent(vals.UTSTART) + "', " + vals.RA_CENT + ", " + vals.DEC_CENT + ", " + vals.RA_MIN 
                 + ", " + vals.RA_MAX + ", " + vals.DEC_MIN + ", " + vals.DEC_MAX + ", " 
                 + vals.CCDSTEMP + ", " + vals.CCDATEMP + ", " + vals.AZDMD + ", " + vals.AZIMUTH 
                 + ", " + vals.ALTDMD + ", " + vals.ALTITUDE + ", " + vals.ROTSKYPA 
                 + ", " + vals.FRAME_ZP_APASS + ", " + vals.FRAME_ZP_STDEV_APASS
+                + ", " + vals.FRAME_ZP_M_APASS + ", " + vals.FRAME_ZP_C_APASS
                 + ", " + vals.FRAME_ZP_USNOB + ", " + vals.FRAME_ZP_STDEV_USNOB 
+                + ", " + vals.FRAME_ZP_M_USNOB + ", " + vals.FRAME_ZP_C_USNOB
                 + ", '" + vals.FILENAME + "')";
+	    //FIXME REMOVE THIS NEXT LINE
+	    qry = "UPDATE " + schema_name + ".images SET frame_zp_m_apass = " + vals.FRAME_ZP_M_APASS + ", frame_zp_c_apass = " + vals.FRAME_ZP_C_APASS + 
+	          ", frame_zp_m_usnob = " + vals.FRAME_ZP_M_USNOB + ", frame_zp_c_usnob = " + vals.FRAME_ZP_M_USNOB + " WHERE img_date = " vals.img_date + ";"  
             _pg_execute(client, qry, function(err, result) {
                 done();
                 if (err) {
